@@ -1,0 +1,30 @@
+name: action ci
+
+runs:
+  using: 'composite'
+  steps:
+    - uses: actions/setup-node@v4
+      with:
+        node-version-file: './.node-version'
+
+    - name: Restore node modules
+      uses: actions/cache@v4
+      id: cache_dependency
+      env:
+        cache-name: cache-dependency
+      with:
+        path: '**/node_modules'
+        key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('package-lock.json') }}
+
+    - name: Install node modules
+      if: ${{ steps.cache_dependency.outputs.cache-hit != 'true' }}
+      shell: bash
+      run: npm ci --no-audit --progress=false --silent
+
+    - name: Run Check
+      shell: bash
+      run: npm run check
+
+    - name: Run Unit Tests
+      shell: bash
+      run: npm run test

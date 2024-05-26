@@ -1,0 +1,66 @@
+{
+  "name": "s3-concat",
+  "version": "0.0.0-semantically-released",
+  "description": "Concatenate multiple files in AWS S3 using multipart upload.",
+  "type": "module",
+  "main": "dist/s3-concat.js",
+  "types": "dist/s3-concat.d.mts",
+  "module": "dist/s3-concat.js",
+  "exports": {
+    ".": {
+      "require": "./dist/s3-concat.umd.cjs",
+      "import": "./dist/s3-concat.js"
+    }
+  },
+  "scripts": {
+    "fix": "run-s fix:*",
+    "build": "npm run clean && vite build",
+    "fix:safe": "npx @biomejs/biome format . --write",
+    "fix:unsafe": "npx @biomejs/biome check . --apply-unsafe",
+    "check": "run-s check:*",
+    "check:lint": "npx @biomejs/biome lint .",
+    "check:type": "tsc",
+    "check:spell": "cspell lint . --cache --gitignore",
+    "clean": "run-s clean:*",
+    "clean:tsc": "rimraf dist",
+    "test": "vitest run --config vitest.config.ts --coverage.enabled true --reporter=verbose",
+    "publish": "semantic-release"
+  },
+  "author": "shuntaka9576",
+  "license": "MIT",
+  "dependencies": {
+    "@aws-sdk/client-s3": "3.582.0",
+    "p-limit": "5.0.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "1.7.3",
+    "@testcontainers/localstack": "10.9.0",
+    "@vitest/coverage-v8": "1.6.0",
+    "cspell": "8.8.2",
+    "ky": "1.2.4",
+    "npm-run-all": "4.1.5",
+    "rimraf": "5.0.7",
+    "semantic-release": "23.1.1",
+    "typescript": "5.5.0-beta",
+    "vite-plugin-dts": "3.9.1",
+    "vitest": "1.6.0"
+  },
+  "optionalDependencies": {
+    "@rollup/rollup-linux-x64-gnu": "4.18.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/shuntaka9576/s3-concat.git"
+  },
+  "bugs": {
+    "url": "https://github.com/shuntaka9576/s3-concat/issues"
+  },
+  "homepage": "https://github.com/shuntaka9576/s3-concat#readme",
+  "keywords": ["aws", "s3", "concatenate", "multipart upload", "nodejs"],
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "release": {
+    "branches": ["main"]
+  }
+}

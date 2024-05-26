@@ -1,0 +1,10 @@
+node_modules
+*.d.ts
+*.mjs
+*.js
+*.d.mts
+tsconfig.tsbuildinfo
+coverage
+.cspellcache
+.DS_Store
+dist

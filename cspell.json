@@ -1,0 +1,18 @@
+{
+  "words": [
+    "localstack",
+    "biomejs",
+    "localstack",
+    "shuntaka",
+    "testcontainers"
+  ],
+  "ignoreWords": [],
+  "ignoreRegExpList": [""],
+  "languageSettings": [
+    {
+      "languageId": "*",
+      "dictionaries": [],
+      "dictionaryDefinitions": []
+    }
+  ]
+}

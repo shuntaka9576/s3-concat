@@ -1,0 +1,29 @@
+{
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space"
+  },
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "single",
+      "trailingComma": "es5"
+    }
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "recommended": true,
+      "correctness": {
+        "noUnusedVariables": {
+          "level": "error"
+        },
+        "noUnusedImports": {
+          "level": "error"
+        }
+      }
+    }
+  },
+  "files": {
+    "ignore": ["*.js", "*.d.mts", "node_modules", "coverage", "example", "dist"]
+  }
+}

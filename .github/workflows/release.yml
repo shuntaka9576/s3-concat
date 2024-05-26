@@ -1,0 +1,29 @@
+name: release
+
+on:
+  push:
+    branches:
+      - main
+permissions:
+  contents: write
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Action ci
+        uses: ./.github/actions/ci
+
+      - name: Build lib
+        if: ${{ steps.cache_dependency.outputs.cache-hit != 'true' }}
+        shell: bash
+        run: npm run build
+
+      - name: Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm run publish
