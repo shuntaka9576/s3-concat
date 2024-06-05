@@ -23,7 +23,8 @@
     "check:spell": "cspell lint . --cache --gitignore",
     "clean": "run-s clean:*",
     "clean:tsc": "rimraf dist",
-    "test": "vitest run --config vitest.config.ts --coverage.enabled true --reporter=verbose"
+    "test": "vitest run --config vitest.config.ts --coverage.enabled true --reporter=verbose",
+    "publish": "semantic-release"
   },
   "author": "shuntaka9576",
   "license": "MIT",
