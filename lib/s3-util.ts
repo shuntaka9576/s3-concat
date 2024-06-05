@@ -5,7 +5,7 @@ import {
   type ListObjectsV2CommandOutput,
 } from '@aws-sdk/client-s3';
 import { GetObjectCommand } from '@aws-sdk/client-s3';
-import type { S3Client } from './s3-concat.mjs';
+import type { S3Client } from './s3-concat';
 
 export const getListFiles = async (
   s3Client: S3Client,
