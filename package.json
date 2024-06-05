@@ -4,7 +4,7 @@
   "description": "Concatenate multiple files in AWS S3 using multipart upload.",
   "type": "module",
   "main": "dist/s3-concat.js",
-  "types": "dist/s3-concat.d.mts",
+  "types": "dist/s3-concat.d.ts",
   "module": "dist/s3-concat.js",
   "exports": {
     ".": {
@@ -23,8 +23,7 @@
     "check:spell": "cspell lint . --cache --gitignore",
     "clean": "run-s clean:*",
     "clean:tsc": "rimraf dist",
-    "test": "vitest run --config vitest.config.ts --coverage.enabled true --reporter=verbose",
-    "publish": "semantic-release"
+    "test": "vitest run --config vitest.config.ts --coverage.enabled true --reporter=verbose"
   },
   "author": "shuntaka9576",
   "license": "MIT",

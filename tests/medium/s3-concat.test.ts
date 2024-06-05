@@ -1,8 +1,8 @@
 import { ListObjectsV2Command, S3Client } from '@aws-sdk/client-s3';
 import { inject } from 'vitest';
-import { S3Concat } from '../../lib/s3-concat.mjs';
-import { S3ClientHelper } from '../helpers/s3-helper.mjs';
-import { KiB, MiB } from '../helpers/value.mjs';
+import { S3Concat } from '../../lib/s3-concat';
+import { S3ClientHelper } from '../helpers/s3-helper';
+import { KiB, MiB } from '../helpers/value';
 
 const LOCAL_STACK_HOST = inject('localStackHost');
 

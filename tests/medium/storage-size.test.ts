@@ -2,8 +2,8 @@ import {
   type StorageSize,
   type StorageUnit,
   sizeToBytes,
-} from '../../lib/storage-size.mjs';
-import { GiB, KiB, MiB, TiB } from './../helpers/value.mjs';
+} from '../../lib/storage-size';
+import { GiB, KiB, MiB, TiB } from './../helpers/value';
 
 describe('sizeToBytes', () => {
   test.each<{ value: StorageSize<StorageUnit>; expected: number }>([

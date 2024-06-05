@@ -10,7 +10,7 @@ export default defineConfig({
   ],
   build: {
     lib: {
-      entry: resolve(__dirname, './lib/s3-concat.mts'),
+      entry: resolve(__dirname, './lib/s3-concat.ts'),
       name: 's3-concat',
       fileName: 's3-concat',
       formats: ['es', 'umd'],

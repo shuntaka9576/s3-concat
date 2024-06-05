@@ -6,12 +6,12 @@ import {
   type UploadPartCopyCommandOutput,
 } from '@aws-sdk/client-s3';
 import pLimit from 'p-limit';
-import * as s3Util from './s3-util.mjs';
+import * as s3Util from './s3-util';
 import {
   type StorageSize,
   type StorageUnit,
   sizeToBytes,
-} from './storage-size.mjs';
+} from './storage-size';
 
 const MULTI_PART_UPLOAD_LIMIT = sizeToBytes('5MiB');
 const DEFAULT_LIMIT_CONCURRENCY = 5;

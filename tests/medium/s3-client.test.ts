@@ -1,7 +1,7 @@
 import { S3Client } from '@aws-sdk/client-s3';
 import { inject } from 'vitest';
-import { getListFiles } from '../../lib/s3-util.mjs';
-import { S3ClientHelper } from '../helpers/s3-helper.mjs';
+import { getListFiles } from '../../lib/s3-util';
+import { S3ClientHelper } from '../helpers/s3-helper';
 
 const LOCAL_STACK_HOST = inject('localStackHost');
 

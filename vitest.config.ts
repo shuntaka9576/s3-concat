@@ -7,9 +7,9 @@ export default defineConfig({
     globals: true,
     testTimeout: 100_000_000,
     coverage: {
-      include: ['lib/**/*.mts'],
+      include: ['lib/**/*.ts'],
       reporter: ['json'],
     },
-    globalSetup: 'tests/medium/setup/global-setup.mts',
+    globalSetup: 'tests/medium/setup/global-setup.ts',
   },
 });
