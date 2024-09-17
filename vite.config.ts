@@ -9,6 +9,9 @@ export default defineConfig({
     }),
   ],
   build: {
+    rollupOptions: {
+      external: ['@aws-sdk/client-s3'],
+    },
     lib: {
       entry: resolve(__dirname, './lib/s3-concat.ts'),
       name: 's3-concat',
