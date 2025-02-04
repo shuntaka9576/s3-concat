@@ -4,7 +4,7 @@
   "description": "Concatenate multiple files in AWS S3 using multipart upload.",
   "type": "module",
   "main": "dist/s3-concat.js",
-  "types": "dist/s3-concat.d.ts",
+  "types": "dist/lib/s3-concat.d.ts",
   "module": "dist/s3-concat.js",
   "exports": {
     ".": {
