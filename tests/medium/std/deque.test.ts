@@ -1,4 +1,3 @@
-import { describe, expect, it } from 'vitest';
 import { Deque } from '../../../lib/std/deque';
 
 describe('Deque', () => {
