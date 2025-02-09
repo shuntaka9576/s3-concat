@@ -1,25 +1,26 @@
-import {
-  CompleteMultipartUploadCommand,
-  CreateMultipartUploadCommand,
-  UploadPartCommand,
-  UploadPartCopyCommand,
-  type UploadPartCopyCommandOutput,
-} from '@aws-sdk/client-s3';
 import pLimit from 'p-limit';
-import * as s3Util from './s3-util';
+import * as s3Client from './s3/client';
+import { S3File } from './s3/file';
+import {
+  type UploadTask,
+  planedSplitFile as planedSplitFiles,
+  planedUploadTask,
+} from './s3/task';
+import { Deque } from './std/deque';
 import {
   type StorageSize,
   type StorageUnit,
   sizeToBytes,
-} from './storage-size';
+} from './std/storage-size';
 
-const MULTI_PART_UPLOAD_LIMIT = sizeToBytes('5MiB');
 const DEFAULT_LIMIT_CONCURRENCY = 5;
 
 export type S3Client = {
   // biome-ignore lint/suspicious/noExplicitAny: Using `any` type to ensure S3Client is not dependent on a specific AWS SDK version
   send(command: any): Promise<any>;
 };
+
+type BuiltinJoinOrderCompareFnSpecifier = 'keyNameAsc' | 'keyNameDsc';
 
 export type ConcatParams = {
   /**
@@ -49,6 +50,26 @@ export type ConcatParams = {
    */
   minSize?: StorageSize<StorageUnit> | undefined;
   /**
+   * A callback function or preset value to determine the order in which files are concatenated.
+   *
+   * When provided as a callback, it receives the file name and its creation timestamp as arguments.
+   * The function should return a value (either a number or a string) that represents the sort order,
+   * where lower values indicate a higher priority in the concatenation sequence.
+   *
+   * Alternatively, you can specify the string `'fetchOrder'` to use a built-in default ordering
+   * that is optimized for performance.
+   *
+   * @default fetchOrder
+   */
+  joinOrder?:
+    | JoinOrderCompareFn<{
+        key: string;
+        size: number;
+        lastModified: Date;
+      }>
+    | 'fetchOrder'
+    | BuiltinJoinOrderCompareFnSpecifier;
+  /**
    * The maximum number of concurrent asynchronous I/O operations.
    * This limits the number of parallel S3 operations to avoid overwhelming the system.
    * @default 5
@@ -75,21 +96,6 @@ export type ConcatParams = {
     }
 );
 
-type FileUploadTask = {
-  tasks: {
-    multiPartUploads: {
-      key: string;
-      size: number;
-    }[];
-    localUploads: {
-      key: string;
-      size: number;
-    }[];
-    totalSize: number;
-    concatKey: string;
-  }[];
-};
-
 type ConcatResult =
   | {
       kind: 'concatenated';
@@ -97,13 +103,46 @@ type ConcatResult =
     }
   | { kind: 'fileNotFound' };
 
+type JoinOrderCompareFn<T> = (a: T, b: T) => number;
+
+const builtinJoinOrderFunc = (
+  specifier: BuiltinJoinOrderCompareFnSpecifier
+): ((
+  a: { key: string; size: number; lastModified: Date },
+  b: { key: string; size: number; lastModified: Date }
+) => number) => {
+  switch (specifier) {
+    case 'keyNameAsc':
+      return (a, b) =>
+        a.key.localeCompare(b.key, undefined, {
+          numeric: true,
+          sensitivity: 'base',
+        });
+    case 'keyNameDsc':
+      return (a, b) =>
+        b.key.localeCompare(a.key, undefined, {
+          numeric: true,
+          sensitivity: 'base',
+        });
+    default:
+      throw new Error(`unknown joinOrder specifier: ${specifier}`);
+  }
+};
+
 export class S3Concat {
   private s3Client: S3Client;
   private srcBucketName: string;
   private dstBucketName: string;
   private dstKey: string;
-  private allFiles: { key: string; size: number }[];
+  private s3Files: { key: string; size: number; lastModified: Date }[];
   private concatFileNameCallback: (idx?: number) => string;
+  private joinOrder:
+    | JoinOrderCompareFn<{
+        key: string;
+        size: number;
+        lastModified: Date;
+      }>
+    | 'fetchOrder';
   private limitConcurrency: number;
   private minSize?: number;
 
@@ -112,9 +151,30 @@ export class S3Concat {
     this.srcBucketName = params.srcBucketName;
     this.dstBucketName = params.dstBucketName;
     this.dstKey = params.dstPrefix;
-    this.allFiles = [];
+    this.s3Files = [];
     this.limitConcurrency = params.pLimit ?? DEFAULT_LIMIT_CONCURRENCY;
     this.minSize = params.minSize && sizeToBytes(params.minSize);
+    this.joinOrder = ((
+      joinOrder:
+        | BuiltinJoinOrderCompareFnSpecifier
+        | 'fetchOrder'
+        | JoinOrderCompareFn<{
+            key: string;
+            size: number;
+            lastModified: Date;
+          }>
+        | undefined
+    ) => {
+      if (joinOrder === 'fetchOrder' || joinOrder == null) {
+        return 'fetchOrder';
+      }
+
+      if (typeof joinOrder === 'function') {
+        return joinOrder;
+      }
+
+      return builtinJoinOrderFunc(joinOrder);
+    })(params.joinOrder);
 
     if (typeof params.concatFileName === 'string') {
       this.concatFileNameCallback = () => params.concatFileName;
@@ -124,231 +184,80 @@ export class S3Concat {
   }
 
   async addFiles(prefix: string): Promise<void> {
-    const files = await s3Util.getListFiles(
+    const files = await s3Client.getListFiles(
       this.s3Client,
       this.srcBucketName,
       prefix
     );
-    this.allFiles.push(...files);
+
+    this.s3Files.push(...files);
+  }
+
+  private toS3Files(): { files: Deque<S3File>; size: number } {
+    if (this.joinOrder !== 'fetchOrder') {
+      this.s3Files = this.s3Files.sort(this.joinOrder);
+    }
+
+    const s3Files = new Deque<S3File>();
+    let size = 0;
+    for (const s3File of this.s3Files) {
+      s3Files.pushBack(new S3File(s3File.key, s3File.size, 0));
+      size += s3File.size;
+    }
+
+    return { files: s3Files, size };
   }
 
   async concat(): Promise<ConcatResult> {
-    const uploadTasks = this.createFileUploadTasks(
-      this.allFiles,
-      (i: number) => `${this.dstKey}/${this.concatFileNameCallback(i)}`
+    const s3Files = this.toS3Files();
+    const splitFiles = planedSplitFiles(
+      this.concatFileNameCallback,
+      s3Files,
+      this.minSize
     );
 
-    if (uploadTasks.tasks.length === 0) {
+    const splitFileAndUploadTask: {
+      keyName: string;
+      uploadTasks: UploadTask[];
+      size: number;
+    }[] = splitFiles.map((splitFile) => {
+      const uploadTasks = planedUploadTask(splitFile.s3Files.files);
+
+      return {
+        keyName: splitFile.keyName,
+        uploadTasks,
+        size: splitFile.s3Files.size,
+      };
+    });
+
+    if (splitFileAndUploadTask.length === 0) {
       return { kind: 'fileNotFound' };
     }
 
     const limit = pLimit(this.limitConcurrency);
 
-    const results = await Promise.allSettled(
-      uploadTasks.tasks.map((task) => limit(() => this.uploadTask(task)))
+    const keys = await Promise.all(
+      splitFileAndUploadTask.map((task) =>
+        limit(async () => {
+          const key = `${this.dstKey}/${task.keyName}`;
+          await s3Client.concatWithMultipartUpload(
+            this.s3Client,
+            this.dstBucketName,
+            key,
+            task.uploadTasks,
+            this.limitConcurrency
+          );
+          return {
+            key,
+            size: task.size,
+          };
+        })
+      )
     );
-
-    results.map((result) => {
-      if (result.status !== 'fulfilled') {
-        throw new Error(`concat task error: ${result.reason}`);
-      }
-    });
-
-    const concatenatedKeys = uploadTasks.tasks.map((task) => {
-      return {
-        key: task.concatKey,
-        size: task.totalSize,
-      };
-    });
 
     return {
       kind: 'concatenated',
-      keys: concatenatedKeys,
-    };
-  }
-
-  private async uploadTask(task: {
-    multiPartUploads: { key: string; size: number }[];
-    localUploads: { key: string; size: number }[];
-    totalSize: number;
-    concatKey: string;
-  }): Promise<void> {
-    const createUploadResponse = await this.s3Client.send(
-      new CreateMultipartUploadCommand({
-        Bucket: this.dstBucketName,
-        Key: task.concatKey,
-      })
-    );
-
-    const uploadId = createUploadResponse.UploadId;
-    const parts: { PartNumber: number; ETag: string }[] = [];
-    const limit = pLimit(this.limitConcurrency);
-
-    const s3EtagParts: { PartNumber: number; ETag: string }[][] =
-      await Promise.all(
-        task.multiPartUploads.map((s3Part, i) => {
-          return limit(() => {
-            const partSize = Math.min(sizeToBytes('5GiB'), s3Part.size);
-            const partCount = Math.ceil(s3Part.size / partSize);
-            const copyPromises = [];
-
-            for (let partNumber = 1; partNumber <= partCount; partNumber++) {
-              const start = (partNumber - 1) * partSize;
-              const end = Math.min(start + partSize - 1, s3Part.size - 1);
-              const copyRange = `bytes=${start}-${end}`;
-
-              copyPromises.push(
-                new Promise<{ PartNumber: number; ETag: string }>(
-                  (resolve, reject) => {
-                    this.s3Client
-                      .send(
-                        new UploadPartCopyCommand({
-                          CopySource: `${this.srcBucketName}/${s3Part.key}`,
-                          CopySourceRange: copyRange,
-                          Bucket: this.dstBucketName,
-                          Key: task.concatKey,
-                          UploadId: uploadId,
-                          PartNumber: partNumber + i * partCount,
-                        })
-                      )
-                      .then((res: UploadPartCopyCommandOutput) => {
-                        if (res.CopyPartResult?.ETag == null) {
-                          throw new Error(
-                            'Unexpected error: ETag is missing in the UploadPartCopyCommand response.'
-                          );
-                        }
-                        resolve({
-                          PartNumber: partNumber + i * partCount,
-                          ETag: res.CopyPartResult.ETag,
-                        });
-                      })
-                      .catch((error) => {
-                        reject(
-                          new Error(
-                            `Failed to upload part ${partNumber} ${error}`
-                          )
-                        );
-                      });
-                  }
-                )
-              );
-            }
-
-            return Promise.all(copyPromises);
-          });
-        })
-      );
-
-    parts.push(...s3EtagParts.flat());
-
-    let posPartNumber = parts.length + 1;
-    const partSize = sizeToBytes('10MiB');
-    let buffer = Buffer.alloc(0);
-
-    for (const localPart of task.localUploads) {
-      const partStream = await s3Util.getStream(
-        this.s3Client,
-        this.srcBucketName,
-        localPart.key
-      );
-
-      for await (const chunk of partStream) {
-        buffer = Buffer.concat([buffer, chunk]);
-
-        while (buffer.length >= partSize) {
-          const partBuffer = buffer.subarray(0, partSize);
-          buffer = buffer.subarray(partSize);
-
-          const uploadPartCommand = new UploadPartCommand({
-            Bucket: this.dstBucketName,
-            Key: task.concatKey,
-            UploadId: uploadId,
-            PartNumber: posPartNumber,
-            Body: partBuffer,
-          });
-
-          const uploadPartResponse =
-            await this.s3Client.send(uploadPartCommand);
-          parts.push({
-            ETag: uploadPartResponse.ETag,
-            PartNumber: posPartNumber,
-          });
-
-          posPartNumber += 1;
-        }
-      }
-    }
-
-    if (buffer.length > 0) {
-      const uploadPartCommand = new UploadPartCommand({
-        Bucket: this.dstBucketName,
-        Key: task.concatKey,
-        UploadId: uploadId,
-        PartNumber: posPartNumber,
-        Body: buffer,
-      });
-
-      const uploadPartResponse = await this.s3Client.send(uploadPartCommand);
-      parts.push({
-        ETag: uploadPartResponse.ETag,
-        PartNumber: posPartNumber,
-      });
-    }
-
-    const sortedParts = parts.sort((a, b) => a.PartNumber - b.PartNumber);
-    await this.s3Client.send(
-      new CompleteMultipartUploadCommand({
-        Bucket: this.dstBucketName,
-        Key: task.concatKey,
-        UploadId: uploadId,
-        MultipartUpload: {
-          Parts: sortedParts,
-        },
-      })
-    );
-  }
-
-  private createFileUploadTasks(
-    files: { key: string; size: number }[],
-    keyCallback: (idx: number) => string
-  ): FileUploadTask {
-    const { groups, currentGroup } = files.reduce<{
-      groups: { key: string; size: number }[][];
-      currentGroup: { key: string; size: number }[];
-      accSize: number;
-    }>(
-      (acc, file) => {
-        acc.currentGroup.push(file);
-        acc.accSize += file.size;
-
-        if (this.minSize != null) {
-          if (acc.accSize >= this.minSize) {
-            acc.groups.push([...acc.currentGroup]);
-            acc.currentGroup = [];
-            acc.accSize = 0;
-          }
-          return acc;
-        }
-        return acc;
-      },
-      { groups: [], currentGroup: [], accSize: 0 }
-    );
-
-    if (currentGroup.length > 0) {
-      groups.push(currentGroup);
-    }
-
-    return {
-      tasks: groups.map((group, index) => ({
-        multiPartUploads: group.filter(
-          (file) => file.size >= MULTI_PART_UPLOAD_LIMIT
-        ),
-        localUploads: group.filter(
-          (file) => file.size < MULTI_PART_UPLOAD_LIMIT
-        ),
-        totalSize: group.reduce((sum, file) => sum + file.size, 0),
-        concatKey: keyCallback(index + 1),
-      })),
+      keys: keys,
     };
   }
 }

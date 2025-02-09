@@ -10,7 +10,7 @@ export default defineConfig({
   ],
   build: {
     rollupOptions: {
-      external: ['@aws-sdk/client-s3'],
+      external: ['@aws-sdk/client-s3', 'node:stream', 'node:stream/promises'],
     },
     lib: {
       entry: resolve(__dirname, './lib/s3-concat.ts'),

@@ -2,7 +2,7 @@ import {
   type StorageSize,
   type StorageUnit,
   sizeToBytes,
-} from '../../lib/storage-size';
+} from '../../lib/std/storage-size';
 import { GiB, KiB, MiB, TiB } from './../helpers/value';
 
 describe('sizeToBytes', () => {

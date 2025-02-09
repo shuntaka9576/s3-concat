@@ -19,6 +19,7 @@ export class S3ClientHelper {
     files: {
       fileSize: number;
       fileCount: number;
+      fill?: string;
     }[];
     prefix: string;
   }): Promise<{ bucketName: string }> {
@@ -31,7 +32,7 @@ export class S3ClientHelper {
     );
 
     const promises = params.files.flatMap((file, i) => {
-      const fileContent = Buffer.alloc(file.fileSize, '0');
+      const fileContent = Buffer.alloc(file.fileSize, file.fill ?? '0');
 
       const pl = [...Array(file.fileCount)].map((_, j) => {
         const fileName = `${params.prefix}/file-${i + 1}-${j + 1}.txt`;

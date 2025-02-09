@@ -1,7 +1,7 @@
 import { S3Client } from '@aws-sdk/client-s3';
 import { inject } from 'vitest';
-import { getListFiles } from '../../lib/s3-util';
-import { S3ClientHelper } from '../helpers/s3-helper';
+import { getListFiles } from '../../../lib/s3/client';
+import { S3ClientHelper } from '../../helpers/s3-helper';
 
 const LOCAL_STACK_HOST = inject('localStackHost');
 
@@ -47,22 +47,27 @@ describe('getListFiles', () => {
       {
         key: 'tmp/file-1-1.txt',
         size: 1024,
+        lastModified: expect.any(Date),
       },
       {
         key: 'tmp/file-1-2.txt',
         size: 1024,
+        lastModified: expect.any(Date),
       },
       {
         key: 'tmp/file-1-3.txt',
         size: 1024,
+        lastModified: expect.any(Date),
       },
       {
         key: 'tmp/file-1-4.txt',
         size: 1024,
+        lastModified: expect.any(Date),
       },
       {
         key: 'tmp/file-1-5.txt',
         size: 1024,
+        lastModified: expect.any(Date),
       },
     ]);
   });

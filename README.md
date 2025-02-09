@@ -2,7 +2,7 @@
 
 # s3-concat
 
-`s3-concat` is a library for concatenating multiple files stored in AWS S3 into a single file using multipart upload. This is particularly useful for handling large datasets and optimizing S3 operations. Files larger than 5MiB are uploaded using multipart upload, while files smaller than 5MiB are concatenated via streaming.
+`s3-concat` is a library for concatenating multiple files stored in AWS S3 into a single file using multipart upload. This is particularly useful for handling large datasets and optimizing S3 operations. Files larger than 5MiB are uploaded using multipart upload, while files smaller than 5MiB are concatenated via streaming. Additionally, the order in which the source files are concatenated can also be controlled.
 
 Inspired by the [s3-concat](https://pypi.org/project/s3-concat/) project on PyPI.
 
@@ -78,6 +78,43 @@ main().then(() => console.log('success'));
 ```
 
 In this example, files from the tmp/1gb prefix in the source bucket will be concatenated and split into multiple files if the total size exceeds 5GiB. The concatenated files will be named using the callback function, resulting in names like concat_1.json, concat_2.json, etc.
+
+#### Example 3: Custom Join Order Example
+
+It is possible to specify the join order using the joinOrder option. Although the presets keyNameDsc and keyNameAsc are supported, you can also customize the join order by providing your own function that conforms to the type JoinOrderCompareFn<T> (e.g., JoinOrderCompareFn<{ key: string; size: number; lastModified: Date }>).
+
+```diff
+// Descending order by keyName
+const s3Concat = new S3Concat({
+  s3Client,
+  srcBucketName: srcBucketName,
+  dstBucketName: dstBucketName,
+  dstPrefix,
+  concatFileNameCallback: (i) => `concat_${i}.json`,
++ joinOrder: 'keyNameDsc', // use builtin keyword
+});
+
+// Descending order by lastModified
+const s3Concat = new S3Concat({
+  s3Client,
+  srcBucketName: srcBucketName,
+  dstBucketName: dstBucketName,
+  dstPrefix,
+  concatFileNameCallback: (i) => `concat_${i}.json`,
++ joinOrder: (a, b) => a.lastModified.getTime() - b.lastModified.getTime(),
+});
+
+// Descending order by size
+const s3Concat = new S3Concat({
+  s3Client,
+  srcBucketName: srcBucketName,
+  dstBucketName: dstBucketName,
+  dstPrefix,
+  concatFileNameCallback: (i) => `concat_${i}.json`,
++ joinOrder: (a, b) => b.size - a.size,
+});
+```
+
 
 ## License
 
