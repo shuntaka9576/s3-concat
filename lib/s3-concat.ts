@@ -1,3 +1,4 @@
+import pLimit from 'p-limit';
 import * as s3Client from './s3/client';
 import { S3File } from './s3/file';
 import {
@@ -219,37 +220,39 @@ export class S3Concat {
       keyName: string;
       uploadTasks: UploadTask[];
       size: number;
-    }[] = [];
-
-    for (const splitFile of splitFiles) {
+    }[] = splitFiles.map((splitFile) => {
       const uploadTasks = planedUploadTask(splitFile.s3Files.files);
 
-      splitFileAndUploadTask.push({
+      return {
         keyName: splitFile.keyName,
         uploadTasks,
         size: splitFile.s3Files.size,
-      });
-    }
+      };
+    });
 
     if (splitFileAndUploadTask.length === 0) {
       return { kind: 'fileNotFound' };
     }
 
-    const keys = await Promise.all(
-      splitFileAndUploadTask.map(async (task) => {
-        const key = `${this.dstKey}/${task.keyName}`;
-        await s3Client.concatWithMultipartUpload(
-          this.s3Client,
-          this.dstBucketName,
-          key,
-          task.uploadTasks
-        );
+    const limit = pLimit(this.limitConcurrency);
 
-        return {
-          key,
-          size: task.size,
-        };
-      })
+    const keys = await Promise.all(
+      splitFileAndUploadTask.map((task) =>
+        limit(async () => {
+          const key = `${this.dstKey}/${task.keyName}`;
+          await s3Client.concatWithMultipartUpload(
+            this.s3Client,
+            this.dstBucketName,
+            key,
+            task.uploadTasks,
+            this.limitConcurrency
+          );
+          return {
+            key,
+            size: task.size,
+          };
+        })
+      )
     );
 
     return {

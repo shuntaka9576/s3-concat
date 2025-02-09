@@ -13,6 +13,7 @@ import {
   UploadPartCommand,
   UploadPartCopyCommand,
 } from '@aws-sdk/client-s3';
+import pLimit from 'p-limit';
 import type { S3Client } from '../s3-concat';
 import type { S3File } from './file';
 import { type UploadTask, getPartSizeForPartTask } from './task';
@@ -101,7 +102,8 @@ export const concatWithMultipartUpload = async (
   s3Client: S3Client,
   bucketName: string,
   newKey: string,
-  tasks: UploadTask[]
+  tasks: UploadTask[],
+  limitNumber: number
 ) => {
   const createRes = await s3Client.send(
     new CreateMultipartUploadCommand({
@@ -115,56 +117,65 @@ export const concatWithMultipartUpload = async (
   }
 
   const completedParts: Array<{ ETag?: string; PartNumber: number }> = [];
-  let partNumber = 1;
 
-  for (const task of tasks) {
-    if (task.uploadType === 'PartCopy') {
-      const copySource = encodeURI(`${bucketName}/${task.s3File.key}`);
-      const copyRange = `bytes=${task.start}-${task.end - 1}`;
-      const copyRes = await s3Client.send(
-        new UploadPartCopyCommand({
-          Bucket: bucketName,
-          Key: newKey,
-          UploadId: uploadId,
-          PartNumber: partNumber,
-          CopySource: copySource,
-          CopySourceRange: copyRange,
-        })
-      );
-      completedParts.push({
-        ETag: copyRes.CopyPartResult?.ETag,
-        PartNumber: partNumber,
-      });
-    } else {
-      const partSize = getPartSizeForPartTask(task);
-      if (partSize === 0) {
-        continue;
-      }
+  const limit = pLimit(limitNumber);
 
-      const partStream = await createCombinedStream(
-        s3Client,
-        task.s3Files,
-        bucketName
-      );
+  await Promise.all(
+    tasks.map((task, i) =>
+      limit(async () => {
+        const partNumber = i + 1;
 
-      const uploadRes = await s3Client.send(
-        new UploadPartCommand({
-          Bucket: bucketName,
-          Key: newKey,
-          UploadId: uploadId,
-          PartNumber: partNumber,
-          Body: partStream,
-          ContentLength: partSize,
-        })
-      );
+        if (task.uploadType === 'PartCopy') {
+          const copySource = encodeURI(`${bucketName}/${task.s3File.key}`);
+          const copyRange = `bytes=${task.start}-${task.end - 1}`;
+          const copyRes = await s3Client.send(
+            new UploadPartCopyCommand({
+              Bucket: bucketName,
+              Key: newKey,
+              UploadId: uploadId,
+              PartNumber: partNumber,
+              CopySource: copySource,
+              CopySourceRange: copyRange,
+            })
+          );
 
-      completedParts.push({
-        ETag: uploadRes.ETag,
-        PartNumber: partNumber,
-      });
-    }
-    partNumber++;
-  }
+          completedParts.push({
+            ETag: copyRes.CopyPartResult?.ETag,
+            PartNumber: partNumber,
+          });
+        } else {
+          const partSize = getPartSizeForPartTask(task);
+          if (partSize === 0) {
+            return;
+          }
+
+          const partStream = await createCombinedStream(
+            s3Client,
+            task.s3Files,
+            bucketName
+          );
+
+          const uploadRes = await s3Client.send(
+            new UploadPartCommand({
+              Bucket: bucketName,
+              Key: newKey,
+              UploadId: uploadId,
+              PartNumber: partNumber,
+              Body: partStream,
+              ContentLength: partSize,
+            })
+          );
+
+          completedParts.push({
+            ETag: uploadRes.ETag,
+            PartNumber: partNumber,
+          });
+        }
+      })
+    )
+  );
+
+  completedParts.sort((a, b) => a.PartNumber - b.PartNumber);
 
   await s3Client.send(
     new CompleteMultipartUploadCommand({
