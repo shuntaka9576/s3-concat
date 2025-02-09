@@ -2,7 +2,7 @@
 
 # s3-concat
 
-`s3-concat` is a library for concatenating multiple files stored in AWS S3 into a single file using multipart upload. This is particularly useful for handling large datasets and optimizing S3 operations. Files larger than 5MiB are uploaded using multipart upload, while files smaller than 5MiB are concatenated via streaming.
+`s3-concat` is a library for concatenating multiple files stored in AWS S3 into a single file using multipart upload. This is particularly useful for handling large datasets and optimizing S3 operations. Files larger than 5MiB are uploaded using multipart upload, while files smaller than 5MiB are concatenated via streaming. Additionally, the order in which the source files are concatenated can also be controlled.
 
 Inspired by the [s3-concat](https://pypi.org/project/s3-concat/) project on PyPI.
 
