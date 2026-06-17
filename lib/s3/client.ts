@@ -1,15 +1,10 @@
-import { PassThrough, type Readable } from 'node:stream';
-import { pipeline } from 'node:stream/promises';
-import type {
-  GetObjectCommandOutput,
-  ListObjectsV2CommandOutput,
-} from '@aws-sdk/client-s3';
-
+import { Readable } from 'node:stream';
 import {
   CompleteMultipartUploadCommand,
   CreateMultipartUploadCommand,
   GetObjectCommand,
   ListObjectsV2Command,
+  type ListObjectsV2CommandOutput,
   UploadPartCommand,
   UploadPartCopyCommand,
 } from '@aws-sdk/client-s3';
@@ -18,36 +13,30 @@ import type { S3Client } from '../s3-concat';
 import type { S3File } from './file';
 import { type UploadTask, getPartSizeForPartTask } from './task';
 
-function hasValidS3Properties(content: {
+type S3FileInfo = { key: string; size: number; lastModified: Date };
+
+const hasValidS3Properties = (content: {
   Key?: string;
   Size?: number;
   LastModified?: Date;
-}): content is { Key: string; Size: number; LastModified: Date } {
-  return (
-    content.Key !== undefined &&
-    content.Size !== undefined &&
-    content.LastModified !== undefined
-  );
-}
+}): content is { Key: string; Size: number; LastModified: Date } =>
+  content.Key !== undefined &&
+  content.Size !== undefined &&
+  content.LastModified !== undefined;
 
-function isNotDirectory(content: {
+const isNotDirectory = (content: {
   Key: string;
-  Size: number;
-  LastModified: Date;
-}): content is { Key: string; Size: number; LastModified: Date } {
-  return !content.Key.endsWith('/');
-}
+}): boolean => !content.Key.endsWith('/');
 
 export const getListFiles = async (
   s3Client: S3Client,
   bucketName: string,
   prefix: string
-): Promise<{ key: string; size: number; lastModified: Date }[]> => {
-  let isTruncated = true;
-  let continuationToken: string | undefined = undefined;
-  const fileList: { key: string; size: number; lastModified: Date }[] = [];
+): Promise<S3FileInfo[]> => {
+  const fileList: S3FileInfo[] = [];
+  let continuationToken: string | undefined;
 
-  while (isTruncated) {
+  do {
     const response: ListObjectsV2CommandOutput = await s3Client.send(
       new ListObjectsV2Command({
         Bucket: bucketName,
@@ -56,47 +45,55 @@ export const getListFiles = async (
       })
     );
 
-    if (response.Contents) {
-      const files = response.Contents.filter(
-        (content) =>
-          content.Key !== undefined &&
-          content.Size !== undefined &&
-          content.LastModified !== undefined
-      )
-        .filter(hasValidS3Properties)
-        .filter(isNotDirectory)
-        .map((content) => ({
-          key: content.Key,
-          size: content.Size,
-          lastModified: content.LastModified,
-        }));
-
-      fileList.push(...files);
+    for (const content of response.Contents ?? []) {
+      if (!hasValidS3Properties(content) || !isNotDirectory(content)) {
+        continue;
+      }
+      fileList.push({
+        key: content.Key,
+        size: content.Size,
+        lastModified: content.LastModified,
+      });
     }
 
-    isTruncated = response.IsTruncated ?? false;
-    continuationToken = response.NextContinuationToken;
-  }
+    continuationToken = response.IsTruncated
+      ? response.NextContinuationToken
+      : undefined;
+  } while (continuationToken !== undefined);
 
   return fileList;
 };
 
-export const getStream = async (
+const encodeCopySourceKey = (key: string): string =>
+  key.split('/').map(encodeURIComponent).join('/');
+
+const createCombinedStream = (
   s3Client: S3Client,
-  bucket: string,
-  key: string
-): Promise<Readable> => {
-  const data: GetObjectCommandOutput = await s3Client.send(
-    new GetObjectCommand({
-      Bucket: bucket,
-      Key: key,
-    })
+  s3Files: S3File[],
+  bucketName: string
+): Readable =>
+  Readable.from(
+    (async function* () {
+      for (const f of s3Files) {
+        const range = `bytes=${f.start}-${f.size - 1}`;
+        const getRes = await s3Client.send(
+          new GetObjectCommand({
+            Bucket: bucketName,
+            Key: f.key,
+            Range: range,
+          })
+        );
+
+        const body = getRes.Body;
+        if (body === undefined) {
+          throw new Error(`empty body for s3://${bucketName}/${f.key}`);
+        }
+        for await (const chunk of body as Readable) {
+          yield chunk;
+        }
+      }
+    })()
   );
-
-  const body = data.Body as Readable;
-
-  return body;
-};
 
 export const concatWithMultipartUpload = async (
   s3Client: S3Client,
@@ -104,7 +101,7 @@ export const concatWithMultipartUpload = async (
   newKey: string,
   tasks: UploadTask[],
   limitNumber: number
-) => {
+): Promise<void> => {
   const createRes = await s3Client.send(
     new CreateMultipartUploadCommand({
       Bucket: bucketName,
@@ -112,11 +109,13 @@ export const concatWithMultipartUpload = async (
     })
   );
   const uploadId = createRes.UploadId;
-  if (uploadId == null) {
+  if (uploadId === undefined) {
     throw new Error('request failed CreateMultipartUploadCommand');
   }
 
-  const completedParts: Array<{ ETag?: string; PartNumber: number }> = [];
+  const completedParts: Array<
+    { ETag?: string; PartNumber: number } | undefined
+  > = new Array(tasks.length);
 
   const limit = pLimit(limitNumber);
 
@@ -126,7 +125,7 @@ export const concatWithMultipartUpload = async (
         const partNumber = i + 1;
 
         if (task.uploadType === 'PartCopy') {
-          const copySource = encodeURI(`${bucketName}/${task.s3File.key}`);
+          const copySource = `${bucketName}/${encodeCopySourceKey(task.s3File.key)}`;
           const copyRange = `bytes=${task.start}-${task.end - 1}`;
           const copyRes = await s3Client.send(
             new UploadPartCopyCommand({
@@ -139,43 +138,42 @@ export const concatWithMultipartUpload = async (
             })
           );
 
-          completedParts.push({
+          completedParts[i] = {
             ETag: copyRes.CopyPartResult?.ETag,
             PartNumber: partNumber,
-          });
-        } else {
-          const partSize = getPartSizeForPartTask(task);
-          if (partSize === 0) {
-            return;
-          }
-
-          const partStream = await createCombinedStream(
-            s3Client,
-            task.s3Files,
-            bucketName
-          );
-
-          const uploadRes = await s3Client.send(
-            new UploadPartCommand({
-              Bucket: bucketName,
-              Key: newKey,
-              UploadId: uploadId,
-              PartNumber: partNumber,
-              Body: partStream,
-              ContentLength: partSize,
-            })
-          );
-
-          completedParts.push({
-            ETag: uploadRes.ETag,
-            PartNumber: partNumber,
-          });
+          };
+          return;
         }
+
+        const partSize = getPartSizeForPartTask(task);
+        if (partSize === 0) {
+          return;
+        }
+
+        const partStream = createCombinedStream(
+          s3Client,
+          task.s3Files,
+          bucketName
+        );
+
+        const uploadRes = await s3Client.send(
+          new UploadPartCommand({
+            Bucket: bucketName,
+            Key: newKey,
+            UploadId: uploadId,
+            PartNumber: partNumber,
+            Body: partStream,
+            ContentLength: partSize,
+          })
+        );
+
+        completedParts[i] = {
+          ETag: uploadRes.ETag,
+          PartNumber: partNumber,
+        };
       })
     )
   );
-
-  completedParts.sort((a, b) => a.PartNumber - b.PartNumber);
 
   await s3Client.send(
     new CompleteMultipartUploadCommand({
@@ -183,40 +181,10 @@ export const concatWithMultipartUpload = async (
       Key: newKey,
       UploadId: uploadId,
       MultipartUpload: {
-        Parts: completedParts,
+        Parts: completedParts.filter(
+          (p): p is { ETag?: string; PartNumber: number } => p !== undefined
+        ),
       },
     })
   );
-};
-
-const createCombinedStream = async (
-  s3Client: S3Client,
-  s3Files: S3File[],
-  bucketName: string
-): Promise<PassThrough> => {
-  const pass = new PassThrough();
-
-  process.nextTick(async () => {
-    try {
-      for (const f of s3Files) {
-        const range = `bytes=${f.start}-${f.size - 1}`;
-
-        const getRes = await s3Client.send(
-          new GetObjectCommand({
-            Bucket: bucketName,
-            Key: f.key,
-            Range: range,
-          })
-        );
-
-        const bodyStream = getRes.Body as Readable;
-        await pipeline(bodyStream, pass, { end: false });
-      }
-      pass.end();
-    } catch (err) {
-      pass.destroy(err as Error);
-    }
-  });
-
-  return pass;
 };

@@ -1,13 +1,22 @@
 {
   "words": [
-    "localstack",
     "biomejs",
+    "deque",
+    "floci",
     "localstack",
+    "pnpm",
     "shuntaka",
     "testcontainers",
-    "deque"
+    "zizmor"
   ],
   "ignoreWords": [],
+  "ignorePaths": [
+    "node_modules",
+    "dist",
+    "coverage",
+    "pnpm-lock.yaml",
+    "package-lock.json"
+  ],
   "ignoreRegExpList": [""],
   "languageSettings": [
     {

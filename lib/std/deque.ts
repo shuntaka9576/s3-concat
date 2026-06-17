@@ -13,11 +13,11 @@ export class Deque<T> {
     this._size = 0;
   }
 
-  public get size(): number {
+  get size(): number {
     return this._size;
   }
 
-  public pushFront(item: T): void {
+  pushFront(item: T): void {
     if (this._size === this.capacity) {
       this.resize();
     }
@@ -26,7 +26,7 @@ export class Deque<T> {
     this._size++;
   }
 
-  public pushBack(item: T): void {
+  pushBack(item: T): void {
     if (this._size === this.capacity) {
       this.resize();
     }
@@ -35,7 +35,7 @@ export class Deque<T> {
     this._size++;
   }
 
-  public popFront(): T | undefined {
+  popFront(): T | undefined {
     if (this._size === 0) {
       return undefined;
     }
@@ -46,7 +46,7 @@ export class Deque<T> {
     return item;
   }
 
-  public popBack(): T | undefined {
+  popBack(): T | undefined {
     if (this._size === 0) {
       return undefined;
     }
@@ -57,21 +57,27 @@ export class Deque<T> {
     return item;
   }
 
-  public front(): T | undefined {
+  front(): T | undefined {
     if (this._size === 0) {
       return undefined;
     }
     return this.buffer[this.head];
   }
 
-  public back(): T | undefined {
+  back(): T | undefined {
     if (this._size === 0) {
       return undefined;
     }
     return this.buffer[(this.tail - 1 + this.capacity) % this.capacity];
   }
 
-  private resize() {
+  *[Symbol.iterator](): Iterator<T> {
+    for (let i = 0; i < this._size; i++) {
+      yield this.buffer[(this.head + i) % this.capacity] as T;
+    }
+  }
+
+  private resize(): void {
     const newCapacity = this.capacity * 2;
     const newBuffer = new Array<T | undefined>(newCapacity);
 

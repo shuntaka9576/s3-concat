@@ -2,39 +2,38 @@ const storageUnits = ['B', 'KiB', 'MiB', 'GiB', 'TiB'] as const;
 export type StorageUnit = (typeof storageUnits)[number];
 export type StorageSize<U extends StorageUnit> = `${number}${U}`;
 
-const KiB = 1024;
-const MiB = 1024 * KiB;
-const GiB = 1024 * MiB;
-const TiB = 1024 * GiB;
+export const KiB = 1024;
+export const MiB = 1024 * KiB;
+export const GiB = 1024 * MiB;
+export const TiB = 1024 * GiB;
 
-const isStorageSize = (input: string): input is StorageSize<StorageUnit> => {
-  const regex = new RegExp(`^\\d+(${storageUnits.join('|')})$`);
+const STORAGE_SIZE_REGEX = new RegExp(`^\\d+(${storageUnits.join('|')})$`);
 
-  return regex.test(input);
-};
+const STORAGE_UNITS_LONGEST_FIRST = [...storageUnits].sort(
+  (a, b) => b.length - a.length
+);
+
+const isStorageSize = (input: string): input is StorageSize<StorageUnit> =>
+  STORAGE_SIZE_REGEX.test(input);
 
 const parseStorageSize = <U extends StorageUnit>(
   input: string
-): [number, U] | null => {
-  if (isStorageSize(input)) {
-    const sortedUnits = storageUnits
-      .slice()
-      .sort((a, b) => b.length - a.length);
-    const unit = sortedUnits.find((u) => input.endsWith(u)) as U;
-    const numberPart = input.slice(0, -unit.length);
-    const value = Number.parseInt(numberPart, 10);
-
-    return [value, unit];
+): [number, U] | undefined => {
+  if (!isStorageSize(input)) {
+    return undefined;
   }
+  const unit = STORAGE_UNITS_LONGEST_FIRST.find((u) => input.endsWith(u)) as U;
+  const numberPart = input.slice(0, -unit.length);
+  const value = Number.parseInt(numberPart, 10);
 
-  return null;
+  return [value, unit];
 };
 
 export const sizeToBytes = <U extends StorageUnit>(
   size: StorageSize<U>
 ): number => {
   const result = parseStorageSize(size);
-  if (result == null) {
+  if (result === undefined) {
     throw new Error('parse error');
   }
 

@@ -24,6 +24,14 @@
     }
   },
   "files": {
-    "ignore": ["*.js", "*.d.mts", "node_modules", "coverage", "example", "dist"]
+    "ignore": [
+      "*.js",
+      "*.d.mts",
+      "node_modules",
+      "coverage",
+      "example",
+      "dist",
+      "pnpm-lock.yaml"
+    ]
   }
 }

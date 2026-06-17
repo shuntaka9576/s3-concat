@@ -1,41 +1,38 @@
 import {
-  LocalstackContainer,
-  type StartedLocalStackContainer,
-} from '@testcontainers/localstack';
-import ky from 'ky';
+  FlociContainer,
+  type StartedFlociContainer,
+} from '@floci/testcontainers';
 import type { GlobalSetupContext } from 'vitest/node';
+
+export type FlociConfig = {
+  endpoint: string;
+  region: string;
+  accessKeyId: string;
+  secretAccessKey: string;
+};
 
 declare module 'vitest' {
   export interface ProvidedContext {
-    localStackHost: string;
+    flociConfig: FlociConfig;
   }
 }
 
-let container: StartedLocalStackContainer;
+let container: StartedFlociContainer;
 
 export const setup = async ({ provide }: GlobalSetupContext) => {
-  container = await new LocalstackContainer().start();
-  provide('localStackHost', container.getConnectionUri());
+  container = await new FlociContainer().start();
 
-  // Wait until the LocalStack endpoint is available
-  await waitForLocalStack(container.getConnectionUri());
-  console.log('container lunched');
+  provide('flociConfig', {
+    endpoint: container.getEndpoint(),
+    region: container.getRegion(),
+    accessKeyId: container.getAccessKey(),
+    secretAccessKey: container.getSecretKey(),
+  });
+
+  console.log('container launched');
 };
 
 export const teardown = async () => {
   await container.stop();
-
   console.log('container stopped');
-};
-
-const waitForLocalStack = async (uri: string) => {
-  const maxAttempts = 10;
-  const timeout = 60 * 1000 * 5; // ms
-
-  await ky.get(uri, {
-    retry: {
-      limit: maxAttempts,
-    },
-    timeout,
-  });
 };
