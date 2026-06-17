@@ -6,7 +6,7 @@
 #   scripts/sdk-matrix.sh [test|e2e]
 #
 #   test  - run `pnpm test` (floci, default)
-#   e2e   - run `pnpm e2e`  (real AWS S3; requires ambient creds)
+#   e2e   - run `pnpm e2e`  (real AWS S3; requires ambient credentials)
 #
 # Override versions with: SDK_VERSIONS="3.726.0 latest" scripts/sdk-matrix.sh
 set -euo pipefail
