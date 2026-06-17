@@ -3,13 +3,14 @@
   "version": "0.0.0-semantically-released",
   "description": "Concatenate multiple files in AWS S3 using multipart upload.",
   "type": "module",
-  "main": "dist/s3-concat.js",
-  "types": "dist/lib/s3-concat.d.ts",
+  "main": "dist/s3-concat.umd.cjs",
+  "types": "dist/s3-concat.d.ts",
   "module": "dist/s3-concat.js",
   "exports": {
     ".": {
-      "require": "./dist/s3-concat.umd.cjs",
-      "import": "./dist/s3-concat.js"
+      "types": "./dist/s3-concat.d.ts",
+      "import": "./dist/s3-concat.js",
+      "require": "./dist/s3-concat.umd.cjs"
     }
   },
   "scripts": {
