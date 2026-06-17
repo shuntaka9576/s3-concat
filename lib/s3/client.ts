@@ -1,4 +1,3 @@
-import { Readable } from 'node:stream';
 import {
   CompleteMultipartUploadCommand,
   CreateMultipartUploadCommand,
@@ -67,54 +66,44 @@ export const getListFiles = async (
 const encodeCopySourceKey = (key: string): string =>
   key.split('/').map(encodeURIComponent).join('/');
 
-// S3's SigV4 chunked transfer encoding requires every non-final chunk to be
-// at least 8192 bytes. GetObject bodies of small source files can yield
-// chunks well below that, which makes UploadPartCommand fail with
-// InvalidChunkSizeError against real S3 (LocalStack/floci don't enforce it).
-// Coalesce yielded buffers up to MIN_STREAM_CHUNK before passing them on;
-// the very last chunk is allowed to be smaller and is flushed at the end.
-const MIN_STREAM_CHUNK = 64 * 1024;
-
-const createCombinedStream = (
+// Collect all source-file bytes for one PartTask into a single Buffer.
+//
+// UploadPartCommand selects its wire encoding based on the Body type:
+// a Buffer payload is sent with a known Content-Length (single-chunk
+// SigV4), while a Readable triggers aws-chunked streaming, which S3
+// gates on a 8192-byte minimum per non-final chunk. Streaming would
+// make us depend on the consumer's @aws-sdk/client-s3 version (3.97x+
+// stopped buffering input streams internally, so small GetObject body
+// chunks reach the wire intact and S3 rejects them). Collecting into
+// a Buffer sidesteps the chunked path entirely.
+//
+// Memory cost is bounded by S3 itself: planedUploadTask caps each
+// PartTask at PART_UPLOAD_LIMIT (5 MiB), so even with a saturated
+// pLimit the in-flight peak is roughly partSize * concurrency.
+const collectPartBytes = async (
   s3Client: S3Client,
   s3Files: S3File[],
   bucketName: string
-): Readable =>
-  Readable.from(
-    (async function* () {
-      const pending: Buffer[] = [];
-      let pendingSize = 0;
-
-      for (const f of s3Files) {
-        const range = `bytes=${f.start}-${f.size - 1}`;
-        const getRes = await s3Client.send(
-          new GetObjectCommand({
-            Bucket: bucketName,
-            Key: f.key,
-            Range: range,
-          })
-        );
-
-        const body = getRes.Body;
-        if (body === undefined) {
-          throw new Error(`empty body for s3://${bucketName}/${f.key}`);
-        }
-        for await (const chunk of body as Readable) {
-          const buf = chunk as Buffer;
-          pending.push(buf);
-          pendingSize += buf.length;
-          if (pendingSize >= MIN_STREAM_CHUNK) {
-            yield Buffer.concat(pending, pendingSize);
-            pending.length = 0;
-            pendingSize = 0;
-          }
-        }
-      }
-      if (pendingSize > 0) {
-        yield Buffer.concat(pending, pendingSize);
-      }
-    })()
-  );
+): Promise<Buffer> => {
+  const parts: Buffer[] = [];
+  for (const f of s3Files) {
+    const range = `bytes=${f.start}-${f.size - 1}`;
+    const getRes = await s3Client.send(
+      new GetObjectCommand({
+        Bucket: bucketName,
+        Key: f.key,
+        Range: range,
+      })
+    );
+    const body = getRes.Body;
+    if (body === undefined) {
+      throw new Error(`empty body for s3://${bucketName}/${f.key}`);
+    }
+    const bytes = await body.transformToByteArray();
+    parts.push(Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength));
+  }
+  return Buffer.concat(parts);
+};
 
 export const concatWithMultipartUpload = async (
   s3Client: S3Client,
@@ -171,7 +160,7 @@ export const concatWithMultipartUpload = async (
           return;
         }
 
-        const partStream = createCombinedStream(
+        const partBytes = await collectPartBytes(
           s3Client,
           task.s3Files,
           bucketName
@@ -183,8 +172,8 @@ export const concatWithMultipartUpload = async (
             Key: newKey,
             UploadId: uploadId,
             PartNumber: partNumber,
-            Body: partStream,
-            ContentLength: partSize,
+            Body: partBytes,
+            ContentLength: partBytes.length,
           })
         );
 
