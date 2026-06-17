@@ -60,7 +60,7 @@
   "homepage": "https://github.com/shuntaka9576/s3-concat#readme",
   "keywords": ["aws", "s3", "concatenate", "multipart upload", "nodejs"],
   "engines": {
-    "node": ">=22.0.0"
+    "node": ">=22.22.3"
   },
   "release": {
     "branches": ["main"]
