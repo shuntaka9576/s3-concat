@@ -29,10 +29,13 @@
   "license": "MIT",
   "packageManager": "pnpm@10.33.2",
   "dependencies": {
-    "@aws-sdk/client-s3": "3.726.0",
-    "p-limit": "6.2.0"
+    "p-limit": "^6.2.0"
+  },
+  "peerDependencies": {
+    "@aws-sdk/client-s3": "^3.0.0"
   },
   "devDependencies": {
+    "@aws-sdk/client-s3": "3.726.0",
     "@biomejs/biome": "1.9.4",
     "@floci/testcontainers": "0.1.0",
     "@vitest/coverage-v8": "3.0.5",
