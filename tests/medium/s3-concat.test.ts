@@ -1,14 +1,11 @@
-import {
-  GetObjectCommand,
-  ListObjectsV2Command,
-  S3Client,
-} from '@aws-sdk/client-s3';
+import { GetObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
 import { inject } from 'vitest';
 import { S3Concat } from '../../lib/s3-concat';
+import { KiB, MiB } from '../../lib/std/storage-size';
+import { createTestS3Client } from '../helpers/s3-client-factory';
 import { S3ClientHelper } from '../helpers/s3-helper';
-import { KiB, MiB } from '../helpers/value';
 
-const LOCAL_STACK_HOST = inject('localStackHost');
+const FLOCI_CONFIG = inject('flociConfig');
 
 describe('concat', () => {
   test('SingleFileOutputWithoutMinSize', async () => {
@@ -26,29 +23,11 @@ describe('concat', () => {
     const prefix = 'tmp';
     const dstPrefix = 'output';
     const concatFileName = 'output.json';
-    const s3ClientHelper = new S3ClientHelper(
-      new S3Client({
-        endpoint: LOCAL_STACK_HOST,
-        region: 'us-east-1',
-        forcePathStyle: true,
-        credentials: {
-          secretAccessKey: 'test',
-          accessKeyId: 'test',
-        },
-      })
-    );
+    const s3Client = createTestS3Client(FLOCI_CONFIG);
+    const s3ClientHelper = new S3ClientHelper(s3Client);
     const { bucketName } = await s3ClientHelper.setupS3({
       files,
       prefix,
-    });
-    const s3Client = new S3Client({
-      endpoint: LOCAL_STACK_HOST,
-      region: 'us-east-1',
-      forcePathStyle: true,
-      credentials: {
-        secretAccessKey: 'test',
-        accessKeyId: 'test',
-      },
     });
     const s3Concat = new S3Concat({
       s3Client,
@@ -102,31 +81,12 @@ describe('concat', () => {
       },
     ];
     const prefix = 'tmp';
-    const s3ClientHelper = new S3ClientHelper(
-      new S3Client({
-        endpoint: LOCAL_STACK_HOST,
-        region: 'us-east-1',
-        forcePathStyle: true,
-        credentials: {
-          secretAccessKey: 'test',
-          accessKeyId: 'test',
-        },
-      })
-    );
+    const dstPrefix = 'output';
+    const s3Client = createTestS3Client(FLOCI_CONFIG);
+    const s3ClientHelper = new S3ClientHelper(s3Client);
     const { bucketName } = await s3ClientHelper.setupS3({
       files,
       prefix,
-    });
-
-    const dstPrefix = 'output';
-    const s3Client = new S3Client({
-      endpoint: LOCAL_STACK_HOST,
-      region: 'us-east-1',
-      forcePathStyle: true,
-      credentials: {
-        secretAccessKey: 'test',
-        accessKeyId: 'test',
-      },
     });
     const s3Concat = new S3Concat({
       s3Client,
@@ -254,32 +214,12 @@ describe('concat', () => {
         },
       ];
       const prefix = 'tmp';
-
-      const s3ClientHelper = new S3ClientHelper(
-        new S3Client({
-          endpoint: LOCAL_STACK_HOST,
-          region: 'us-east-1',
-          forcePathStyle: true,
-          credentials: {
-            secretAccessKey: 'test',
-            accessKeyId: 'test',
-          },
-        })
-      );
+      const dstPrefix = 'output';
+      const s3Client = createTestS3Client(FLOCI_CONFIG);
+      const s3ClientHelper = new S3ClientHelper(s3Client);
       const { bucketName } = await s3ClientHelper.setupS3({
         files,
         prefix,
-      });
-
-      const dstPrefix = 'output';
-      const s3Client = new S3Client({
-        endpoint: LOCAL_STACK_HOST,
-        region: 'us-east-1',
-        forcePathStyle: true,
-        credentials: {
-          secretAccessKey: 'test',
-          accessKeyId: 'test',
-        },
       });
 
       const s3Concat = new S3Concat({
@@ -350,32 +290,14 @@ describe('concat', () => {
       },
     ];
     const prefix = 'tmp';
-    const s3ClientHelper = new S3ClientHelper(
-      new S3Client({
-        endpoint: LOCAL_STACK_HOST,
-        region: 'us-east-1',
-        forcePathStyle: true,
-        credentials: {
-          secretAccessKey: 'test',
-          accessKeyId: 'test',
-        },
-      })
-    );
+    const dstPrefix = 'output';
+    const s3Client = createTestS3Client(FLOCI_CONFIG);
+    const s3ClientHelper = new S3ClientHelper(s3Client);
     const { bucketName } = await s3ClientHelper.setupS3({
       files,
       prefix,
     });
 
-    const dstPrefix = 'output';
-    const s3Client = new S3Client({
-      endpoint: LOCAL_STACK_HOST,
-      region: 'us-east-1',
-      forcePathStyle: true,
-      credentials: {
-        secretAccessKey: 'test',
-        accessKeyId: 'test',
-      },
-    });
     const s3Concat = new S3Concat({
       s3Client,
       srcBucketName: bucketName,
@@ -429,32 +351,14 @@ describe('concat', () => {
     // Given:
     const prefix = 'tmp';
     const dstPrefix = 'output';
-    const s3ClientHelper = new S3ClientHelper(
-      new S3Client({
-        endpoint: LOCAL_STACK_HOST,
-        region: 'us-east-1',
-        forcePathStyle: true,
-        credentials: {
-          secretAccessKey: 'test',
-          accessKeyId: 'test',
-        },
-      })
-    );
+    const s3Client = createTestS3Client(FLOCI_CONFIG);
+    const s3ClientHelper = new S3ClientHelper(s3Client);
     const { bucketName } = await s3ClientHelper.setupS3({
       files: [],
       prefix,
     });
 
     // When:
-    const s3Client = new S3Client({
-      endpoint: LOCAL_STACK_HOST,
-      region: 'us-east-1',
-      forcePathStyle: true,
-      credentials: {
-        secretAccessKey: 'test',
-        accessKeyId: 'test',
-      },
-    });
     const s3Concat = new S3Concat({
       s3Client,
       srcBucketName: bucketName,

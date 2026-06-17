@@ -1,24 +1,15 @@
-import { S3Client } from '@aws-sdk/client-s3';
 import { inject } from 'vitest';
 import { getListFiles } from '../../../lib/s3/client';
+import { createTestS3Client } from '../../helpers/s3-client-factory';
 import { S3ClientHelper } from '../../helpers/s3-helper';
 
-const LOCAL_STACK_HOST = inject('localStackHost');
+const FLOCI_CONFIG = inject('flociConfig');
 
 describe('getListFiles', () => {
   test('ListFilesWithPrefix', async () => {
     // Given:
-    const s3ClientHelper = new S3ClientHelper(
-      new S3Client({
-        endpoint: LOCAL_STACK_HOST,
-        region: 'us-east-1',
-        forcePathStyle: true,
-        credentials: {
-          secretAccessKey: 'test',
-          accessKeyId: 'test',
-        },
-      })
-    );
+    const s3Client = createTestS3Client(FLOCI_CONFIG);
+    const s3ClientHelper = new S3ClientHelper(s3Client);
     const prefix = 'tmp';
     const { bucketName } = await s3ClientHelper.setupS3({
       files: [
@@ -28,15 +19,6 @@ describe('getListFiles', () => {
         },
       ],
       prefix,
-    });
-    const s3Client = new S3Client({
-      endpoint: inject('localStackHost'),
-      region: 'us-east-1',
-      forcePathStyle: true,
-      credentials: {
-        secretAccessKey: 'test',
-        accessKeyId: 'test',
-      },
     });
 
     // When:

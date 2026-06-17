@@ -22,6 +22,19 @@ export type S3Client = {
 
 type BuiltinJoinOrderCompareFnSpecifier = 'keyNameAsc' | 'keyNameDsc';
 
+type S3FileMeta = { key: string; size: number; lastModified: Date };
+
+type JoinOrderCompareFn<T> = (a: T, b: T) => number;
+
+type ResolvedJoinOrder = JoinOrderCompareFn<S3FileMeta> | 'fetchOrder';
+
+type ConcatResult =
+  | {
+      kind: 'concatenated';
+      keys: { key: string; size: number }[];
+    }
+  | { kind: 'fileNotFound' };
+
 export type ConcatParams = {
   /**
    * The S3 client to use for operations.
@@ -62,11 +75,7 @@ export type ConcatParams = {
    * @default fetchOrder
    */
   joinOrder?:
-    | JoinOrderCompareFn<{
-        key: string;
-        size: number;
-        lastModified: Date;
-      }>
+    | JoinOrderCompareFn<S3FileMeta>
     | 'fetchOrder'
     | BuiltinJoinOrderCompareFnSpecifier;
   /**
@@ -96,21 +105,9 @@ export type ConcatParams = {
     }
 );
 
-type ConcatResult =
-  | {
-      kind: 'concatenated';
-      keys: { key: string; size: number }[];
-    }
-  | { kind: 'fileNotFound' };
-
-type JoinOrderCompareFn<T> = (a: T, b: T) => number;
-
 const builtinJoinOrderFunc = (
   specifier: BuiltinJoinOrderCompareFnSpecifier
-): ((
-  a: { key: string; size: number; lastModified: Date },
-  b: { key: string; size: number; lastModified: Date }
-) => number) => {
+): JoinOrderCompareFn<S3FileMeta> => {
   switch (specifier) {
     case 'keyNameAsc':
       return (a, b) =>
@@ -129,20 +126,26 @@ const builtinJoinOrderFunc = (
   }
 };
 
+const resolveJoinOrder = (
+  joinOrder: ConcatParams['joinOrder']
+): ResolvedJoinOrder => {
+  if (joinOrder === undefined || joinOrder === 'fetchOrder') {
+    return 'fetchOrder';
+  }
+  if (typeof joinOrder === 'function') {
+    return joinOrder;
+  }
+  return builtinJoinOrderFunc(joinOrder);
+};
+
 export class S3Concat {
   private s3Client: S3Client;
   private srcBucketName: string;
   private dstBucketName: string;
   private dstKey: string;
-  private s3Files: { key: string; size: number; lastModified: Date }[];
+  private s3Files: S3FileMeta[];
   private concatFileNameCallback: (idx?: number) => string;
-  private joinOrder:
-    | JoinOrderCompareFn<{
-        key: string;
-        size: number;
-        lastModified: Date;
-      }>
-    | 'fetchOrder';
+  private joinOrder: ResolvedJoinOrder;
   private limitConcurrency: number;
   private minSize?: number;
 
@@ -154,33 +157,12 @@ export class S3Concat {
     this.s3Files = [];
     this.limitConcurrency = params.pLimit ?? DEFAULT_LIMIT_CONCURRENCY;
     this.minSize = params.minSize && sizeToBytes(params.minSize);
-    this.joinOrder = ((
-      joinOrder:
-        | BuiltinJoinOrderCompareFnSpecifier
-        | 'fetchOrder'
-        | JoinOrderCompareFn<{
-            key: string;
-            size: number;
-            lastModified: Date;
-          }>
-        | undefined
-    ) => {
-      if (joinOrder === 'fetchOrder' || joinOrder == null) {
-        return 'fetchOrder';
-      }
+    this.joinOrder = resolveJoinOrder(params.joinOrder);
 
-      if (typeof joinOrder === 'function') {
-        return joinOrder;
-      }
-
-      return builtinJoinOrderFunc(joinOrder);
-    })(params.joinOrder);
-
-    if (typeof params.concatFileName === 'string') {
-      this.concatFileNameCallback = () => params.concatFileName;
-    } else {
-      this.concatFileNameCallback = params.concatFileNameCallback;
-    }
+    this.concatFileNameCallback =
+      typeof params.concatFileName === 'string'
+        ? () => params.concatFileName
+        : params.concatFileNameCallback;
   }
 
   async addFiles(prefix: string): Promise<void> {
@@ -220,15 +202,11 @@ export class S3Concat {
       keyName: string;
       uploadTasks: UploadTask[];
       size: number;
-    }[] = splitFiles.map((splitFile) => {
-      const uploadTasks = planedUploadTask(splitFile.s3Files.files);
-
-      return {
-        keyName: splitFile.keyName,
-        uploadTasks,
-        size: splitFile.s3Files.size,
-      };
-    });
+    }[] = splitFiles.map((splitFile) => ({
+      keyName: splitFile.keyName,
+      uploadTasks: planedUploadTask(splitFile.s3Files.files),
+      size: splitFile.s3Files.size,
+    }));
 
     if (splitFileAndUploadTask.length === 0) {
       return { kind: 'fileNotFound' };
@@ -257,7 +235,7 @@ export class S3Concat {
 
     return {
       kind: 'concatenated',
-      keys: keys,
+      keys,
     };
   }
 }

@@ -1,6 +1,6 @@
 export class S3File {
-  key: string;
-  size: number;
+  readonly key: string;
+  readonly size: number;
   start: number;
 
   constructor(key: string, size: number, start: number) {
@@ -9,15 +9,19 @@ export class S3File {
     this.start = start;
   }
 
-  public remainSize(): number {
+  remainSize(): number {
     return this.size - this.start;
   }
 
-  public eat(consumedSize: number): void {
+  eat(consumedSize: number): void {
     this.start += consumedSize;
   }
 
-  public clone(): S3File {
+  clone(): S3File {
     return new S3File(this.key, this.size, this.start);
+  }
+
+  withConsumed(consumedSize: number): S3File {
+    return new S3File(this.key, this.size, this.start + consumedSize);
   }
 }

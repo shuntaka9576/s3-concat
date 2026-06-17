@@ -1,23 +1,28 @@
 name: ci
 
 on:
-  - push
-  - pull_request
+  push:
+  pull_request:
+
+permissions: {}
 
 jobs:
   ci:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    environment: ${{ inputs.stageName }}
+    permissions:
+      contents: read
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
 
       - name: Action ci
         uses: ./.github/actions/ci
 
       - name: Upload coverage reports to Codecov
-        uses: codecov/codecov-action@v4.0.1
+        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
         with:
           files: ./coverage/coverage-final.json
           token: ${{ secrets.CODECOV_TOKEN }}

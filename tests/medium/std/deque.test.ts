@@ -1,7 +1,7 @@
 import { Deque } from '../../../lib/std/deque';
 
 describe('Deque', () => {
-  it('should correctly handle pushFront and popFront', () => {
+  test('should correctly handle pushFront and popFront', () => {
     const deque = new Deque<number>();
 
     expect(deque.size).toBe(0);
@@ -17,7 +17,7 @@ describe('Deque', () => {
     expect(deque.size).toBe(0);
   });
 
-  it('should correctly handle pushBack and popBack', () => {
+  test('should correctly handle pushBack and popBack', () => {
     const deque = new Deque<number>();
 
     expect(deque.size).toBe(0);
@@ -33,7 +33,7 @@ describe('Deque', () => {
     expect(deque.size).toBe(0);
   });
 
-  it('should correctly return front and back elements', () => {
+  test('should correctly return front and back elements', () => {
     const deque = new Deque<number>();
 
     expect(deque.front()).toBeUndefined();
@@ -50,7 +50,7 @@ describe('Deque', () => {
     expect(deque.back()).toBe(4);
   });
 
-  it('should resize correctly when capacity is full', () => {
+  test('should resize correctly when capacity is full', () => {
     const deque = new Deque<number>(2);
 
     deque.pushBack(1);
@@ -66,7 +66,7 @@ describe('Deque', () => {
     expect(deque.popFront()).toBe(3);
   });
 
-  it('should handle mixed operations (pushFront, pushBack, popFront, popBack)', () => {
+  test('should handle mixed operations (pushFront, pushBack, popFront, popBack)', () => {
     const deque = new Deque<number>();
 
     deque.pushBack(1);
@@ -84,5 +84,15 @@ describe('Deque', () => {
     expect(deque.size).toBe(2);
     expect(deque.front()).toBe(2);
     expect(deque.back()).toBe(1);
+  });
+
+  test('iterates non-destructively in front-to-back order via Symbol.iterator', () => {
+    const deque = new Deque<number>();
+    deque.pushBack(1);
+    deque.pushBack(2);
+    deque.pushBack(3);
+
+    expect([...deque]).toEqual([1, 2, 3]);
+    expect(deque.size).toBe(3);
   });
 });

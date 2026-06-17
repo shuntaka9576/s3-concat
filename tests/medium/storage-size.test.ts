@@ -1,9 +1,12 @@
 import {
+  GiB,
+  KiB,
+  MiB,
   type StorageSize,
   type StorageUnit,
+  TiB,
   sizeToBytes,
 } from '../../lib/std/storage-size';
-import { GiB, KiB, MiB, TiB } from './../helpers/value';
 
 describe('sizeToBytes', () => {
   test.each<{ value: StorageSize<StorageUnit>; expected: number }>([
