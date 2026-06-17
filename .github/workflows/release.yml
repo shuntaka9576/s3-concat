@@ -29,10 +29,6 @@ jobs:
         shell: bash
         run: pnpm run build
 
-      - name: Upgrade npm (Trusted Publisher requires >= 11.5.1)
-        shell: bash
-        run: npm install -g npm@latest
-
       - name: Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
