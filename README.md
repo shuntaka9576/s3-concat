@@ -1,4 +1,4 @@
-[![ci](https://github.com/shuntaka9576/s3-concat/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/shuntaka9576/s3-concat/actions/workflows/ci.yml) [![codecov](https://codecov.io/gh/shuntaka9576/s3-concat/graph/badge.svg?token=ES0V32EAHO)](https://codecov.io/gh/shuntaka9576/s3-concat)
+[![ci](https://github.com/shuntaka9576/s3-concat/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/shuntaka9576/s3-concat/actions/workflows/ci.yml) [![codecov](https://codecov.io/gh/shuntaka9576/s3-concat/graph/badge.svg?token=ES0V32EAHO)](https://codecov.io/gh/shuntaka9576/s3-concat) [![npm version](https://img.shields.io/npm/v/s3-concat.svg)](https://www.npmjs.com/package/s3-concat)
 
 # s3-concat
 
