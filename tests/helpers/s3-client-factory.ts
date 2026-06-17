@@ -1,8 +1,12 @@
 import { S3Client } from '@aws-sdk/client-s3';
-import type { FlociConfig } from '../medium/setup/global-setup';
+import type { TestS3Config } from '../medium/setup/global-setup';
 
-export const createTestS3Client = (config: FlociConfig): S3Client =>
-  new S3Client({
+export const createTestS3Client = (config: TestS3Config): S3Client => {
+  if (config.mode === 'aws') {
+    // Use the ambient AWS SDK credential chain (env vars, IMDS, aws-vault, ...).
+    return new S3Client({ region: config.region });
+  }
+  return new S3Client({
     endpoint: config.endpoint,
     region: config.region,
     forcePathStyle: true,
@@ -11,3 +15,4 @@ export const createTestS3Client = (config: FlociConfig): S3Client =>
       secretAccessKey: config.secretAccessKey,
     },
   });
+};

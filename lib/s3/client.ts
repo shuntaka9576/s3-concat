@@ -67,6 +67,14 @@ export const getListFiles = async (
 const encodeCopySourceKey = (key: string): string =>
   key.split('/').map(encodeURIComponent).join('/');
 
+// S3's SigV4 chunked transfer encoding requires every non-final chunk to be
+// at least 8192 bytes. GetObject bodies of small source files can yield
+// chunks well below that, which makes UploadPartCommand fail with
+// InvalidChunkSizeError against real S3 (LocalStack/floci don't enforce it).
+// Coalesce yielded buffers up to MIN_STREAM_CHUNK before passing them on;
+// the very last chunk is allowed to be smaller and is flushed at the end.
+const MIN_STREAM_CHUNK = 64 * 1024;
+
 const createCombinedStream = (
   s3Client: S3Client,
   s3Files: S3File[],
@@ -74,6 +82,9 @@ const createCombinedStream = (
 ): Readable =>
   Readable.from(
     (async function* () {
+      const pending: Buffer[] = [];
+      let pendingSize = 0;
+
       for (const f of s3Files) {
         const range = `bytes=${f.start}-${f.size - 1}`;
         const getRes = await s3Client.send(
@@ -89,8 +100,18 @@ const createCombinedStream = (
           throw new Error(`empty body for s3://${bucketName}/${f.key}`);
         }
         for await (const chunk of body as Readable) {
-          yield chunk;
+          const buf = chunk as Buffer;
+          pending.push(buf);
+          pendingSize += buf.length;
+          if (pendingSize >= MIN_STREAM_CHUNK) {
+            yield Buffer.concat(pending, pendingSize);
+            pending.length = 0;
+            pendingSize = 0;
+          }
         }
+      }
+      if (pendingSize > 0) {
+        yield Buffer.concat(pending, pendingSize);
       }
     })()
   );
