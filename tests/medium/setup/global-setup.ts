@@ -4,35 +4,50 @@ import {
 } from '@floci/testcontainers';
 import type { GlobalSetupContext } from 'vitest/node';
 
-export type FlociConfig = {
-  endpoint: string;
-  region: string;
-  accessKeyId: string;
-  secretAccessKey: string;
-};
+export type TestS3Config =
+  | {
+      mode: 'floci';
+      endpoint: string;
+      region: string;
+      accessKeyId: string;
+      secretAccessKey: string;
+    }
+  | {
+      mode: 'aws';
+      region: string;
+    };
 
 declare module 'vitest' {
   export interface ProvidedContext {
-    flociConfig: FlociConfig;
+    testS3Config: TestS3Config;
   }
 }
 
-let container: StartedFlociContainer;
+let container: StartedFlociContainer | undefined;
 
 export const setup = async ({ provide }: GlobalSetupContext) => {
-  container = await new FlociContainer().start();
+  if (process.env.USE_REAL_S3 === '1') {
+    const region =
+      process.env.AWS_REGION ?? process.env.AWS_DEFAULT_REGION ?? 'us-east-1';
+    provide('testS3Config', { mode: 'aws', region });
+    console.log(`using real AWS S3 (region=${region})`);
+    return;
+  }
 
-  provide('flociConfig', {
+  container = await new FlociContainer().start();
+  provide('testS3Config', {
+    mode: 'floci',
     endpoint: container.getEndpoint(),
     region: container.getRegion(),
     accessKeyId: container.getAccessKey(),
     secretAccessKey: container.getSecretKey(),
   });
-
   console.log('container launched');
 };
 
 export const teardown = async () => {
-  await container.stop();
-  console.log('container stopped');
+  if (container !== undefined) {
+    await container.stop();
+    console.log('container stopped');
+  }
 };

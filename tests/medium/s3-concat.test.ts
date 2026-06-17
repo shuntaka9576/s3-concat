@@ -5,7 +5,7 @@ import { KiB, MiB } from '../../lib/std/storage-size';
 import { createTestS3Client } from '../helpers/s3-client-factory';
 import { S3ClientHelper } from '../helpers/s3-helper';
 
-const FLOCI_CONFIG = inject('flociConfig');
+const TEST_S3_CONFIG = inject('testS3Config');
 
 describe('concat', () => {
   test('SingleFileOutputWithoutMinSize', async () => {
@@ -23,7 +23,7 @@ describe('concat', () => {
     const prefix = 'tmp';
     const dstPrefix = 'output';
     const concatFileName = 'output.json';
-    const s3Client = createTestS3Client(FLOCI_CONFIG);
+    const s3Client = createTestS3Client(TEST_S3_CONFIG);
     const s3ClientHelper = new S3ClientHelper(s3Client);
     const { bucketName } = await s3ClientHelper.setupS3({
       files,
@@ -58,13 +58,13 @@ describe('concat', () => {
       })
     );
     expect(got.Contents).toEqual([
-      {
+      expect.objectContaining({
         ETag: expect.any(String),
         Key: `${dstPrefix}/${concatFileName}`,
         LastModified: expect.any(Date),
         Size: 1000 * KiB * 11 + 5 * MiB * 3,
         StorageClass: 'STANDARD',
-      },
+      }),
     ]);
   });
 
@@ -82,7 +82,7 @@ describe('concat', () => {
     ];
     const prefix = 'tmp';
     const dstPrefix = 'output';
-    const s3Client = createTestS3Client(FLOCI_CONFIG);
+    const s3Client = createTestS3Client(TEST_S3_CONFIG);
     const s3ClientHelper = new S3ClientHelper(s3Client);
     const { bucketName } = await s3ClientHelper.setupS3({
       files,
@@ -138,48 +138,48 @@ describe('concat', () => {
       })
     );
     expect(got.Contents).toEqual([
-      {
+      expect.objectContaining({
         Key: 'output/concat_1.json',
         LastModified: expect.any(Date),
         ETag: expect.any(String),
         Size: 3 * KiB,
         StorageClass: 'STANDARD',
-      },
-      {
+      }),
+      expect.objectContaining({
         Key: 'output/concat_2.json',
         LastModified: expect.any(Date),
         ETag: expect.any(String),
         Size: 3 * KiB,
         StorageClass: 'STANDARD',
-      },
-      {
+      }),
+      expect.objectContaining({
         Key: 'output/concat_3.json',
         LastModified: expect.any(Date),
         ETag: expect.any(String),
         Size: 3 * KiB,
         StorageClass: 'STANDARD',
-      },
-      {
+      }),
+      expect.objectContaining({
         Key: 'output/concat_4.json',
         LastModified: expect.any(Date),
         ETag: expect.any(String),
         Size: 1 * KiB + 5 * MiB,
         StorageClass: 'STANDARD',
-      },
-      {
+      }),
+      expect.objectContaining({
         Key: 'output/concat_5.json',
         LastModified: expect.any(Date),
         ETag: expect.any(String),
         Size: 5 * MiB,
         StorageClass: 'STANDARD',
-      },
-      {
+      }),
+      expect.objectContaining({
         Key: 'output/concat_6.json',
         LastModified: expect.any(Date),
         ETag: expect.any(String),
         Size: 5 * MiB,
         StorageClass: 'STANDARD',
-      },
+      }),
     ]);
   });
 
@@ -215,7 +215,7 @@ describe('concat', () => {
       ];
       const prefix = 'tmp';
       const dstPrefix = 'output';
-      const s3Client = createTestS3Client(FLOCI_CONFIG);
+      const s3Client = createTestS3Client(TEST_S3_CONFIG);
       const s3ClientHelper = new S3ClientHelper(s3Client);
       const { bucketName } = await s3ClientHelper.setupS3({
         files,
@@ -251,13 +251,13 @@ describe('concat', () => {
         })
       );
       expect(got.Contents).toEqual([
-        {
+        expect.objectContaining({
           Key: 'output/concat_1.json',
           LastModified: expect.any(Date),
           ETag: expect.any(String),
           Size: 8,
           StorageClass: 'STANDARD',
-        },
+        }),
       ]);
 
       const fileContent = await s3Client.send(
@@ -291,7 +291,7 @@ describe('concat', () => {
     ];
     const prefix = 'tmp';
     const dstPrefix = 'output';
-    const s3Client = createTestS3Client(FLOCI_CONFIG);
+    const s3Client = createTestS3Client(TEST_S3_CONFIG);
     const s3ClientHelper = new S3ClientHelper(s3Client);
     const { bucketName } = await s3ClientHelper.setupS3({
       files,
@@ -328,13 +328,13 @@ describe('concat', () => {
       })
     );
     expect(got.Contents).toEqual([
-      {
+      expect.objectContaining({
         Key: 'output/concat_1.json',
         LastModified: expect.any(Date),
         ETag: expect.any(String),
         Size: 8,
         StorageClass: 'STANDARD',
-      },
+      }),
     ]);
 
     const fileContent = await s3Client.send(
@@ -351,7 +351,7 @@ describe('concat', () => {
     // Given:
     const prefix = 'tmp';
     const dstPrefix = 'output';
-    const s3Client = createTestS3Client(FLOCI_CONFIG);
+    const s3Client = createTestS3Client(TEST_S3_CONFIG);
     const s3ClientHelper = new S3ClientHelper(s3Client);
     const { bucketName } = await s3ClientHelper.setupS3({
       files: [],

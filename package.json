@@ -23,6 +23,7 @@
     "check:spell": "cspell lint . --cache --gitignore",
     "clean": "rimraf dist",
     "test": "vitest run --config vitest.config.ts --coverage.enabled true --reporter=verbose",
+    "e2e": "USE_REAL_S3=1 vitest run --config vitest.config.ts --reporter=verbose",
     "publish": "semantic-release"
   },
   "author": "shuntaka9576",
@@ -35,7 +36,7 @@
     "@aws-sdk/client-s3": "^3.0.0"
   },
   "devDependencies": {
-    "@aws-sdk/client-s3": "3.726.0",
+    "@aws-sdk/client-s3": "3.1070.0",
     "@biomejs/biome": "1.9.4",
     "@floci/testcontainers": "0.1.0",
     "@vitest/coverage-v8": "3.0.5",
