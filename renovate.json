@@ -1,0 +1,38 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "timezone": "Asia/Tokyo",
+  "dependencyDashboard": false,
+  "ignoreTests": true,
+  "automerge": false,
+  "automergeSchedule": ["every 1 hour after 00:00 and before 23:59 every day"],
+  "major": {
+    "enabled": true
+  },
+  "automergeStrategy": "squash",
+  "minimumReleaseAge": "3 days",
+  "rangeStrategy": "bump",
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "schedule": ["at any time"]
+  },
+  "lockFileMaintenance": {
+    "enabled": true
+  },
+  "packageRules": [
+    {
+      "matchUpdateTypes": ["patch", "minor", "major"],
+      "schedule": ["at any time"]
+    },
+    {
+      "description": "Group GitHub Actions",
+      "matchManagers": ["github-actions"],
+      "groupName": "github-actions"
+    },
+    {
+      "description": "Group AWS SDK packages",
+      "matchPackageNames": ["@aws-sdk/**"],
+      "groupName": "aws-sdk"
+    }
+  ]
+}
