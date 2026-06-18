@@ -64,7 +64,7 @@
     "nodejs"
   ],
   "engines": {
-    "node": ">=22.22.3"
+    "node": ">=24.16.0"
   },
   "release": {
     "branches": [
