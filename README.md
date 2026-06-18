@@ -101,7 +101,7 @@ s3://my-bucket/out/concat_2.bin (3145728 bytes, 1 part)
 | `--dst-prefix <prefix>` | Destination key prefix (required) |
 | `--concat-file-name <name>` | Single output object name (mutually exclusive with template) |
 | `--concat-file-name-template <t>` | Template for split outputs; must contain `{i}` |
-| `--min-size <size>` | Split once an output reaches this size, e.g. `5GiB`, `100MiB` |
+| `--min-size <size>` | Start a new output once the current one reaches this size, e.g. `5GiB`, `100MiB`. Source files are never split across outputs — a single source always lands in one output object. |
 | `--p-limit <n>` | Concurrency limit (default 5) |
 | `--join-order <order>` | `fetchOrder` (default), `keyNameAsc`, or `keyNameDsc` |
 | `--dry-run` | Print plan without performing the concat |
@@ -149,7 +149,7 @@ In this example, all files from the tmp/1gb prefix in the source bucket will be 
 
 #### Example 2: Concatenating into Multiple Files with minSize
 
-This example shows how to use the minSize option to split the concatenated files if the total size exceeds the specified limit.
+This example shows how to use the minSize option to split the concatenated files if the total size exceeds the specified limit. `minSize` only controls when to start a new output object — source files themselves are never split. Each source file always lands entirely inside a single output object; its bytes are never spread across two outputs, even when adding it pushes the current output well past `minSize` (for example, a 1 GiB source under `minSize: '5MiB'` produces one 1 GiB output, not 200 sliced outputs).
 
 ```ts
 import { S3Client } from '@aws-sdk/client-s3';
