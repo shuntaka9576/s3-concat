@@ -4,6 +4,10 @@
 
 s3-concat is a zero-dependency library and CLI that concatenates multiple AWS S3 objects into one using multipart upload. It is ideal for managing large datasets and streamlining S3 workflows. The library automatically switches between multipart upload for files over 5 MiB and streaming for smaller files, while also allowing you to specify the concatenation order.
 
+- Consolidate multiple output files from Athena UNLOAD, Iceberg, and ETL workflows into single S3 objects
+- Merge fragmented JSONL/CSV files into larger objects while preserving data order
+- Efficiently process mixed workloads with object sizes ranging from 5 MiB to 5 GiB+
+
 ## Installation
 
 ### Library
