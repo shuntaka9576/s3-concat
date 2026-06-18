@@ -2,18 +2,20 @@
 
 # s3-concat
 
-`s3-concat` is a library for concatenating multiple files stored in AWS S3 into a single file using multipart upload. This is particularly useful for handling large datasets and optimizing S3 operations. Files larger than 5MiB are uploaded using multipart upload, while files smaller than 5MiB are concatenated via streaming. Additionally, the order in which the source files are concatenated can also be controlled.
+s3-concat is a zero-dependency library and CLI that concatenates multiple AWS S3 objects into one using multipart upload. It is ideal for managing large datasets and streamlining S3 workflows. The library automatically switches between multipart upload for files over 5 MiB and streaming for smaller files, while also allowing you to specify the concatenation order.
+
+## Installation
+
+### Library
+
+```bash
+pnpm add s3-concat
+```
 
 `s3-concat` has zero runtime dependencies. `@aws-sdk/client-s3` is declared as a `peerDependency`, so the SDK version stays under your control and is not duplicated in your tree. Install it alongside `s3-concat`.
 
 ```bash
 pnpm add s3-concat @aws-sdk/client-s3
-```
-
-## Installation
-
-```bash
-pnpm add s3-concat
 ```
 
 ### CLI
