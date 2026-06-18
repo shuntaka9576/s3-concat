@@ -47,12 +47,12 @@
     "@biomejs/biome": "2.5.0",
     "@floci/testcontainers": "0.1.0",
     "@semantic-release/exec": "^7.1.0",
-    "@vitest/coverage-v8": "4.1.8",
+    "@vitest/coverage-v8": "4.1.9",
     "cspell": "10.0.1",
     "semantic-release": "25.0.5",
     "tsdown": "^0.22.3",
     "typescript": "6.0.3",
-    "vitest": "4.1.8"
+    "vitest": "4.1.9"
   },
   "repository": {
     "type": "git",
