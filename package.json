@@ -70,11 +70,5 @@
     "branches": [
       "main"
     ]
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "@biomejs/biome",
-      "esbuild"
-    ]
   }
 }
