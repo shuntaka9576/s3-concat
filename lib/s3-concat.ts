@@ -32,8 +32,10 @@ type ConcatResult =
   | {
       kind: 'concatenated';
       keys: { key: string; size: number }[];
+      skippedEmptyKeys: string[];
     }
-  | { kind: 'fileNotFound' };
+  | { kind: 'fileNotFound' }
+  | { kind: 'allEmpty'; emptyKeys: string[] };
 
 export type ConcatParams = {
   /**
@@ -175,14 +177,18 @@ export class S3Concat {
     this.s3Files.push(...files);
   }
 
-  private toS3Files(): { files: Deque<S3File>; size: number } {
-    if (this.joinOrder !== 'fetchOrder') {
-      this.s3Files = this.s3Files.sort(this.joinOrder);
-    }
+  private toS3Files(entries: S3FileMeta[]): {
+    files: Deque<S3File>;
+    size: number;
+  } {
+    const sorted =
+      this.joinOrder === 'fetchOrder'
+        ? entries
+        : [...entries].sort(this.joinOrder);
 
     const s3Files = new Deque<S3File>();
     let size = 0;
-    for (const s3File of this.s3Files) {
+    for (const s3File of sorted) {
       s3Files.pushBack(new S3File(s3File.key, s3File.size, 0));
       size += s3File.size;
     }
@@ -191,7 +197,25 @@ export class S3Concat {
   }
 
   async concat(): Promise<ConcatResult> {
-    const s3Files = this.toS3Files();
+    if (this.s3Files.length === 0) {
+      return { kind: 'fileNotFound' };
+    }
+
+    const emptyKeys: string[] = [];
+    const nonEmpty: S3FileMeta[] = [];
+    for (const f of this.s3Files) {
+      if (f.size === 0) {
+        emptyKeys.push(f.key);
+      } else {
+        nonEmpty.push(f);
+      }
+    }
+
+    if (nonEmpty.length === 0) {
+      return { kind: 'allEmpty', emptyKeys };
+    }
+
+    const s3Files = this.toS3Files(nonEmpty);
     const splitFiles = planedSplitFiles(
       this.concatFileNameCallback,
       s3Files,
@@ -207,10 +231,6 @@ export class S3Concat {
       uploadTasks: planedUploadTask(splitFile.s3Files.files),
       size: splitFile.s3Files.size,
     }));
-
-    if (splitFileAndUploadTask.length === 0) {
-      return { kind: 'fileNotFound' };
-    }
 
     const limit = pLimit(this.limitConcurrency);
 
@@ -236,6 +256,7 @@ export class S3Concat {
     return {
       kind: 'concatenated',
       keys,
+      skippedEmptyKeys: emptyKeys,
     };
   }
 }
