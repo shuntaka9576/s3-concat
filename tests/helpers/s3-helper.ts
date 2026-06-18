@@ -9,7 +9,7 @@ import {
   PutObjectCommand,
   type S3Client,
 } from '@aws-sdk/client-s3';
-import pLimit from 'p-limit';
+import pLimit from '../../lib/std/concurrency';
 import { onTestFinished } from 'vitest';
 
 const limit = pLimit(10);

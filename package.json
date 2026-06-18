@@ -31,11 +31,8 @@
   "author": "shuntaka9576",
   "license": "MIT",
   "packageManager": "pnpm@10.34.3",
-  "dependencies": {
-    "p-limit": "^6.2.0"
-  },
   "peerDependencies": {
-    "@aws-sdk/client-s3": "^3.1068.0"
+    "@aws-sdk/client-s3": ">=3.300.0 <4.0.0"
   },
   "devDependencies": {
     "@aws-sdk/client-s3": "3.1070.0",

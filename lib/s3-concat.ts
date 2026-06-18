@@ -1,4 +1,4 @@
-import pLimit from 'p-limit';
+import pLimit from './std/concurrency';
 import * as s3Client from './s3/client';
 import { S3File } from './s3/file';
 import {
