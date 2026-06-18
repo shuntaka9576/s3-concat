@@ -33,6 +33,12 @@
       "description": "Group AWS SDK packages",
       "matchPackageNames": ["@aws-sdk/**"],
       "groupName": "aws-sdk"
+    },
+    {
+      "description": "Widen Node engines range instead of bumping the floor",
+      "matchDepNames": ["node"],
+      "matchManagers": ["npm"],
+      "rangeStrategy": "widen"
     }
   ]
 }
