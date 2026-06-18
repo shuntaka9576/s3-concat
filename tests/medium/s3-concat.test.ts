@@ -50,6 +50,7 @@ describe('concat', () => {
         },
       ],
       kind: 'concatenated',
+      skippedEmptyKeys: [],
     });
     const got = await s3Client.send(
       new ListObjectsV2Command({
@@ -130,6 +131,7 @@ describe('concat', () => {
         },
       ],
       kind: 'concatenated',
+      skippedEmptyKeys: [],
     });
     const got = await s3Client.send(
       new ListObjectsV2Command({
@@ -242,6 +244,7 @@ describe('concat', () => {
           },
         ],
         kind: 'concatenated',
+        skippedEmptyKeys: [],
       });
 
       const got = await s3Client.send(
@@ -320,6 +323,7 @@ describe('concat', () => {
         },
       ],
       kind: 'concatenated',
+      skippedEmptyKeys: [],
     });
     const got = await s3Client.send(
       new ListObjectsV2Command({
@@ -373,5 +377,140 @@ describe('concat', () => {
     expect(result).toEqual({
       kind: 'fileNotFound',
     });
+  });
+
+  test('NotFoundFileWithoutMinSize', async () => {
+    // Given:
+    const prefix = 'tmp/does-not-exist';
+    const dstPrefix = 'output';
+    const s3Client = createTestS3Client(TEST_S3_CONFIG);
+    const s3ClientHelper = new S3ClientHelper(s3Client);
+    const { bucketName } = await s3ClientHelper.setupS3({
+      files: [],
+      prefix,
+    });
+
+    // When:
+    const s3Concat = new S3Concat({
+      s3Client,
+      srcBucketName: bucketName,
+      dstBucketName: bucketName,
+      dstPrefix,
+      concatFileName: 'never.txt',
+    });
+    await s3Concat.addFiles(prefix);
+    const result = await s3Concat.concat();
+
+    // Then:
+    expect(result).toEqual({
+      kind: 'fileNotFound',
+    });
+  });
+
+  test('AllEmpty', async () => {
+    // Given:
+    const prefix = 'tmp';
+    const dstPrefix = 'output';
+    const s3Client = createTestS3Client(TEST_S3_CONFIG);
+    const s3ClientHelper = new S3ClientHelper(s3Client);
+    const { bucketName } = await s3ClientHelper.setupS3({
+      files: [
+        {
+          fileSize: 0,
+          fileCount: 3,
+        },
+      ],
+      prefix,
+    });
+
+    // When:
+    const s3Concat = new S3Concat({
+      s3Client,
+      srcBucketName: bucketName,
+      dstBucketName: bucketName,
+      dstPrefix,
+      concatFileName: 'never.txt',
+    });
+    await s3Concat.addFiles(prefix);
+    const result = await s3Concat.concat();
+
+    // Then:
+    expect(result).toEqual({
+      kind: 'allEmpty',
+      emptyKeys: expect.arrayContaining([
+        `${prefix}/file-1-1.txt`,
+        `${prefix}/file-1-2.txt`,
+        `${prefix}/file-1-3.txt`,
+      ]),
+    });
+    if (result.kind === 'allEmpty') {
+      expect(result.emptyKeys).toHaveLength(3);
+    }
+  });
+
+  test('MixedWithEmpty', async () => {
+    // Given:
+    const prefix = 'tmp';
+    const dstPrefix = 'output';
+    const concatFileName = 'output.json';
+    const s3Client = createTestS3Client(TEST_S3_CONFIG);
+    const s3ClientHelper = new S3ClientHelper(s3Client);
+    const { bucketName } = await s3ClientHelper.setupS3({
+      files: [
+        {
+          fileSize: 1000 * KiB,
+          fileCount: 2,
+        },
+        {
+          fileSize: 0,
+          fileCount: 2,
+        },
+      ],
+      prefix,
+    });
+
+    // When:
+    const s3Concat = new S3Concat({
+      s3Client,
+      srcBucketName: bucketName,
+      dstBucketName: bucketName,
+      dstPrefix,
+      concatFileName,
+    });
+    await s3Concat.addFiles(prefix);
+    const result = await s3Concat.concat();
+
+    // Then:
+    expect(result).toEqual({
+      kind: 'concatenated',
+      keys: [
+        {
+          key: `${dstPrefix}/${concatFileName}`,
+          size: 1000 * KiB * 2,
+        },
+      ],
+      skippedEmptyKeys: expect.arrayContaining([
+        `${prefix}/file-2-1.txt`,
+        `${prefix}/file-2-2.txt`,
+      ]),
+    });
+    if (result.kind === 'concatenated') {
+      expect(result.skippedEmptyKeys).toHaveLength(2);
+    }
+    const got = await s3Client.send(
+      new ListObjectsV2Command({
+        Bucket: bucketName,
+        Prefix: dstPrefix,
+      })
+    );
+    expect(got.Contents).toEqual([
+      expect.objectContaining({
+        Key: `${dstPrefix}/${concatFileName}`,
+        LastModified: expect.any(Date),
+        ETag: expect.any(String),
+        Size: 1000 * KiB * 2,
+        StorageClass: 'STANDARD',
+      }),
+    ]);
   });
 });
