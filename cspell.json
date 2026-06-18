@@ -2,10 +2,12 @@
   "words": [
     "biomejs",
     "deque",
+    "esbuild",
     "floci",
     "imds",
     "localstack",
     "pnpm",
+    "protobufjs",
     "shuntaka",
     "testcontainers",
     "zizmor"
