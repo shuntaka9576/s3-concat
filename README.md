@@ -1,15 +1,19 @@
-[![ci](https://github.com/shuntaka9576/s3-concat/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/shuntaka9576/s3-concat/actions/workflows/ci.yml) [![codecov](https://codecov.io/gh/shuntaka9576/s3-concat/graph/badge.svg?token=ES0V32EAHO)](https://codecov.io/gh/shuntaka9576/s3-concat) [![npm version](https://img.shields.io/npm/v/s3-concat.svg)](https://www.npmjs.com/package/s3-concat)
+[![ci](https://github.com/shuntaka9576/s3-concat/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/shuntaka9576/s3-concat/actions/workflows/ci.yml) [![codecov](https://codecov.io/gh/shuntaka9576/s3-concat/graph/badge.svg?token=ES0V32EAHO)](https://codecov.io/gh/shuntaka9576/s3-concat) [![npm version](https://img.shields.io/npm/v/s3-concat.svg)](https://www.npmjs.com/package/s3-concat) [![dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)](https://www.npmjs.com/package/s3-concat?activeTab=dependencies)
 
 # s3-concat
 
 `s3-concat` is a library for concatenating multiple files stored in AWS S3 into a single file using multipart upload. This is particularly useful for handling large datasets and optimizing S3 operations. Files larger than 5MiB are uploaded using multipart upload, while files smaller than 5MiB are concatenated via streaming. Additionally, the order in which the source files are concatenated can also be controlled.
 
-`s3-concat` ships with an empty `dependencies` block. Its only runtime requirement, `@aws-sdk/client-s3`, is declared as a peer dependency so the SDK version stays under your control and is not duplicated in your tree.
+`s3-concat` has zero runtime dependencies. `@aws-sdk/client-s3` is declared as a `peerDependency`, so the SDK version stays under your control and is not duplicated in your tree. Install it alongside `s3-concat`:
+
+```bash
+pnpm add s3-concat @aws-sdk/client-s3
+```
 
 ## Installation
 
 ```bash
-npm install s3-concat
+pnpm add s3-concat
 ```
 
 ## Usage
