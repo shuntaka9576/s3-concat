@@ -37,6 +37,37 @@ type ConcatResult =
   | { kind: 'fileNotFound' }
   | { kind: 'allEmpty'; emptyKeys: string[] };
 
+export type PlannedPart =
+  | {
+      kind: 'PartCopy';
+      partNumber: number;
+      size: number;
+      source: { key: string; rangeStart: number; rangeEnd: number };
+    }
+  | {
+      kind: 'Part';
+      partNumber: number;
+      size: number;
+      sources: { key: string; bytes: number }[];
+    };
+
+export type PlannedOutput = {
+  key: string;
+  size: number;
+  parts: PlannedPart[];
+};
+
+export type PlanResult =
+  | {
+      kind: 'plan';
+      totalFiles: number;
+      totalBytes: number;
+      skippedEmptyKeys: string[];
+      outputs: PlannedOutput[];
+    }
+  | { kind: 'fileNotFound' }
+  | { kind: 'allEmpty'; emptyKeys: string[] };
+
 export type ConcatParams = {
   /**
    * The S3 client to use for operations.
@@ -195,6 +226,73 @@ export class S3Concat {
     }
 
     return { files: s3Files, size };
+  }
+
+  plan(): PlanResult {
+    if (this.s3Files.length === 0) {
+      return { kind: 'fileNotFound' };
+    }
+
+    const emptyKeys: string[] = [];
+    const nonEmpty: S3FileMeta[] = [];
+    let totalBytes = 0;
+    for (const f of this.s3Files) {
+      if (f.size === 0) {
+        emptyKeys.push(f.key);
+      } else {
+        nonEmpty.push(f);
+        totalBytes += f.size;
+      }
+    }
+
+    if (nonEmpty.length === 0) {
+      return { kind: 'allEmpty', emptyKeys };
+    }
+
+    const s3Files = this.toS3Files(nonEmpty);
+    const splitFiles = planedSplitFiles(
+      this.concatFileNameCallback,
+      s3Files,
+      this.minSize
+    );
+
+    const outputs: PlannedOutput[] = splitFiles.map((sf) => {
+      const tasks = planedUploadTask(sf.s3Files.files);
+      const parts: PlannedPart[] = tasks.map((task, idx) => {
+        const partNumber = idx + 1;
+        if (task.uploadType === 'PartCopy') {
+          return {
+            kind: 'PartCopy',
+            partNumber,
+            size: task.end - task.start,
+            source: {
+              key: task.s3File.key,
+              rangeStart: task.start,
+              rangeEnd: task.end,
+            },
+          };
+        }
+        const sources = task.s3Files.map((f) => ({
+          key: f.key,
+          bytes: f.remainSize(),
+        }));
+        const size = sources.reduce((acc, s) => acc + s.bytes, 0);
+        return { kind: 'Part', partNumber, size, sources };
+      });
+      return {
+        key: `${this.dstKey}/${sf.keyName}`,
+        size: sf.s3Files.size,
+        parts,
+      };
+    });
+
+    return {
+      kind: 'plan',
+      totalFiles: nonEmpty.length,
+      totalBytes,
+      skippedEmptyKeys: emptyKeys,
+      outputs,
+    };
   }
 
   async concat(): Promise<ConcatResult> {
