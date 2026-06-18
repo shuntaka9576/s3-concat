@@ -2,7 +2,7 @@ import {
   FlociContainer,
   type StartedFlociContainer,
 } from '@floci/testcontainers';
-import type { GlobalSetupContext } from 'vitest/node';
+import type { TestProject } from 'vitest/node';
 
 export type TestS3Config =
   | {
@@ -25,7 +25,7 @@ declare module 'vitest' {
 
 let container: StartedFlociContainer | undefined;
 
-export const setup = async ({ provide }: GlobalSetupContext) => {
+export const setup = async ({ provide }: TestProject) => {
   if (process.env.USE_REAL_S3 === '1') {
     const region =
       process.env.AWS_REGION ?? process.env.AWS_DEFAULT_REGION ?? 'us-east-1';
