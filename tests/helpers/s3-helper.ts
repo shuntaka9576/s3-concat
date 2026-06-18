@@ -59,6 +59,13 @@ export class S3ClientHelper {
     };
   }
 
+  async createEmptyBucket(): Promise<{ bucketName: string }> {
+    const bucketName = `bucket-${randomUUID()}`;
+    await this.s3Client.send(new CreateBucketCommand({ Bucket: bucketName }));
+    onTestFinished(() => this.cleanupBucket(bucketName));
+    return { bucketName };
+  }
+
   uploadFile(bucketName: string, key: string, body: Buffer) {
     return this.s3Client.send(
       new PutObjectCommand({

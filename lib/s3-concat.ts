@@ -244,6 +244,7 @@ export class S3Concat {
         const key = `${this.dstKey}/${task.keyName}`;
         await s3Client.concatWithMultipartUpload(
           this.s3Client,
+          this.srcBucketName,
           this.dstBucketName,
           key,
           task.uploadTasks,

@@ -448,6 +448,81 @@ describe('concat', () => {
     }
   });
 
+  test('CrossBucketConcat', async () => {
+    // Given: files in a src bucket, an empty dst bucket. The mix of <5 MiB
+    // and >=5 MiB inputs exercises both the streaming GetObject path and the
+    // UploadPartCopy path — both used to read from dst instead of src.
+    const files = [
+      {
+        fileSize: 1000 * KiB,
+        fileCount: 11,
+      },
+      {
+        fileSize: 5 * MiB,
+        fileCount: 3,
+      },
+    ];
+    const prefix = 'tmp';
+    const dstPrefix = 'output';
+    const concatFileName = 'output.json';
+    const s3Client = createTestS3Client(TEST_S3_CONFIG);
+    const s3ClientHelper = new S3ClientHelper(s3Client);
+    const { bucketName: srcBucketName } = await s3ClientHelper.setupS3({
+      files,
+      prefix,
+    });
+    const { bucketName: dstBucketName } =
+      await s3ClientHelper.createEmptyBucket();
+
+    const s3Concat = new S3Concat({
+      s3Client,
+      srcBucketName,
+      dstBucketName,
+      dstPrefix,
+      concatFileName,
+    });
+    await s3Concat.addFiles(prefix);
+
+    // When:
+    const result = await s3Concat.concat();
+
+    // Then: concatenated object lands in the dst bucket.
+    expect(result).toEqual({
+      keys: [
+        {
+          key: `${dstPrefix}/${concatFileName}`,
+          size: 1000 * KiB * 11 + 5 * MiB * 3,
+        },
+      ],
+      kind: 'concatenated',
+      skippedEmptyKeys: [],
+    });
+    const dstListing = await s3Client.send(
+      new ListObjectsV2Command({
+        Bucket: dstBucketName,
+        Prefix: dstPrefix,
+      })
+    );
+    expect(dstListing.Contents).toEqual([
+      expect.objectContaining({
+        ETag: expect.any(String),
+        Key: `${dstPrefix}/${concatFileName}`,
+        LastModified: expect.any(Date),
+        Size: 1000 * KiB * 11 + 5 * MiB * 3,
+        StorageClass: 'STANDARD',
+      }),
+    ]);
+
+    // And: src bucket is untouched — no output/ prefix appeared on src.
+    const srcDstPrefixListing = await s3Client.send(
+      new ListObjectsV2Command({
+        Bucket: srcBucketName,
+        Prefix: dstPrefix,
+      })
+    );
+    expect(srcDstPrefixListing.Contents ?? []).toEqual([]);
+  });
+
   test('MixedWithEmpty', async () => {
     // Given:
     const prefix = 'tmp';
