@@ -25,10 +25,6 @@ jobs:
       - name: Action ci
         uses: ./.github/actions/ci
 
-      - name: Build lib
-        shell: bash
-        run: pnpm run build
-
       - name: Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
