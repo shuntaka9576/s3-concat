@@ -1,15 +1,17 @@
 import {
+  AbortMultipartUploadCommand,
+  type ChecksumAlgorithm,
+  type CompletedPart,
   CompleteMultipartUploadCommand,
   CreateMultipartUploadCommand,
-  GetObjectCommand,
   ListObjectsV2Command,
   type ListObjectsV2CommandOutput,
   UploadPartCommand,
   UploadPartCopyCommand,
 } from '@aws-sdk/client-s3';
 import type { S3Client } from '../s3-concat';
-import pLimit from '../std/concurrency';
-import type { S3File } from './file';
+import type { LimitFunction } from '../std/concurrency';
+import { buildMergedBody } from './stream-body';
 import { getPartSizeForPartTask, type UploadTask } from './task';
 
 type S3FileInfo = { key: string; size: number; lastModified: Date };
@@ -65,56 +67,23 @@ export const getListFiles = async (
 const encodeCopySourceKey = (key: string): string =>
   key.split('/').map(encodeURIComponent).join('/');
 
-// Collect all source-file bytes for one PartTask into a single Buffer.
-//
-// UploadPartCommand selects its wire encoding based on the Body type:
-// a Buffer payload is sent with a known Content-Length (single-chunk
-// SigV4), while a Readable triggers aws-chunked streaming, which S3
-// gates on a 8192-byte minimum per non-final chunk. Streaming would
-// make us depend on the consumer's @aws-sdk/client-s3 version (3.97x+
-// stopped buffering input streams internally, so small GetObject body
-// chunks reach the wire intact and S3 rejects them). Collecting into
-// a Buffer sidesteps the chunked path entirely.
-//
-// Memory cost is bounded by S3 itself: planedUploadTask caps each
-// PartTask at PART_UPLOAD_LIMIT (5 MiB), so even with a saturated
-// pLimit the in-flight peak is roughly partSize * concurrency.
-const collectPartBytes = async (
-  s3Client: S3Client,
-  s3Files: S3File[],
-  bucketName: string
-): Promise<Buffer> => {
-  const parts: Buffer[] = [];
-  for (const f of s3Files) {
-    const range = `bytes=${f.start}-${f.size - 1}`;
-    const getRes = await s3Client.send(
-      new GetObjectCommand({
-        Bucket: bucketName,
-        Key: f.key,
-        Range: range,
-      })
-    );
-    const body = getRes.Body;
-    if (body === undefined) {
-      throw new Error(`empty body for s3://${bucketName}/${f.key}`);
-    }
-    const bytes = await body.transformToByteArray();
-    parts.push(Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength));
-  }
-  return Buffer.concat(parts);
-};
+// CRC32 keeps the streaming path on STREAMING-AWS4-HMAC-SHA256-PAYLOAD-TRAILER
+// so the SDK never falls back to single-chunk SigV4, which would re-buffer the
+// whole part in memory and re-introduce the hazard streaming is meant to avoid.
+const STREAMING_CHECKSUM_ALGORITHM = 'CRC32' satisfies ChecksumAlgorithm;
 
 export const concatWithMultipartUpload = async (
   s3Client: S3Client,
   bucketName: string,
   newKey: string,
   tasks: UploadTask[],
-  limitNumber: number
+  limit: LimitFunction
 ): Promise<void> => {
   const createRes = await s3Client.send(
     new CreateMultipartUploadCommand({
       Bucket: bucketName,
       Key: newKey,
+      ChecksumAlgorithm: STREAMING_CHECKSUM_ALGORITHM,
     })
   );
   const uploadId = createRes.UploadId;
@@ -122,78 +91,105 @@ export const concatWithMultipartUpload = async (
     throw new Error('request failed CreateMultipartUploadCommand');
   }
 
-  const completedParts: Array<
-    { ETag?: string; PartNumber: number } | undefined
-  > = new Array(tasks.length);
+  const completedParts: Array<CompletedPart | undefined> = new Array(
+    tasks.length
+  );
 
-  const limit = pLimit(limitNumber);
+  try {
+    await Promise.all(
+      tasks.map((task, i) =>
+        limit(async () => {
+          const partNumber = i + 1;
 
-  await Promise.all(
-    tasks.map((task, i) =>
-      limit(async () => {
-        const partNumber = i + 1;
+          if (task.uploadType === 'PartCopy') {
+            const copySource = `${bucketName}/${encodeCopySourceKey(task.s3File.key)}`;
+            const copyRange = `bytes=${task.start}-${task.end - 1}`;
+            const copyRes = await s3Client.send(
+              new UploadPartCopyCommand({
+                Bucket: bucketName,
+                Key: newKey,
+                UploadId: uploadId,
+                PartNumber: partNumber,
+                CopySource: copySource,
+                CopySourceRange: copyRange,
+              })
+            );
 
-        if (task.uploadType === 'PartCopy') {
-          const copySource = `${bucketName}/${encodeCopySourceKey(task.s3File.key)}`;
-          const copyRange = `bytes=${task.start}-${task.end - 1}`;
-          const copyRes = await s3Client.send(
-            new UploadPartCopyCommand({
-              Bucket: bucketName,
-              Key: newKey,
-              UploadId: uploadId,
+            completedParts[i] = {
+              ETag: copyRes.CopyPartResult?.ETag,
               PartNumber: partNumber,
-              CopySource: copySource,
-              CopySourceRange: copyRange,
-            })
-          );
+              ChecksumCRC32: copyRes.CopyPartResult?.ChecksumCRC32,
+            };
+            return;
+          }
 
-          completedParts[i] = {
-            ETag: copyRes.CopyPartResult?.ETag,
-            PartNumber: partNumber,
-          };
-          return;
-        }
+          const partSize = getPartSizeForPartTask(task);
+          if (partSize === 0) {
+            return;
+          }
 
-        const partSize = getPartSizeForPartTask(task);
-        if (partSize === 0) {
-          return;
-        }
+          const controller = new AbortController();
+          const merged = buildMergedBody({
+            s3Client,
+            bucketName,
+            s3Files: task.s3Files,
+            signal: controller.signal,
+            contentLength: partSize,
+          });
+          try {
+            const uploadRes = await s3Client.send(
+              new UploadPartCommand({
+                Bucket: bucketName,
+                Key: newKey,
+                UploadId: uploadId,
+                PartNumber: partNumber,
+                Body: merged.stream,
+                ContentLength: merged.contentLength,
+                ChecksumAlgorithm: STREAMING_CHECKSUM_ALGORITHM,
+              })
+            );
+            completedParts[i] = {
+              ETag: uploadRes.ETag,
+              PartNumber: partNumber,
+              ChecksumCRC32: uploadRes.ChecksumCRC32,
+            };
+          } catch (err) {
+            controller.abort();
+            // The SDK surfaces a generic AbortError when we destroy the body
+            // stream from buildMergedBody (e.g. on a GetObject failure). Pull
+            // the original cause back out so SlowDown / 503 / socket timeout
+            // / checksum mismatch survives instead of being masked.
+            const upstream = merged.firstError();
+            throw upstream ?? err;
+          }
+        })
+      )
+    );
 
-        const partBytes = await collectPartBytes(
-          s3Client,
-          task.s3Files,
-          bucketName
-        );
-
-        const uploadRes = await s3Client.send(
-          new UploadPartCommand({
-            Bucket: bucketName,
-            Key: newKey,
-            UploadId: uploadId,
-            PartNumber: partNumber,
-            Body: partBytes,
-            ContentLength: partBytes.length,
-          })
-        );
-
-        completedParts[i] = {
-          ETag: uploadRes.ETag,
-          PartNumber: partNumber,
-        };
+    await s3Client.send(
+      new CompleteMultipartUploadCommand({
+        Bucket: bucketName,
+        Key: newKey,
+        UploadId: uploadId,
+        MultipartUpload: {
+          Parts: completedParts.filter(
+            (p): p is CompletedPart => p !== undefined
+          ),
+        },
       })
-    )
-  );
-
-  await s3Client.send(
-    new CompleteMultipartUploadCommand({
-      Bucket: bucketName,
-      Key: newKey,
-      UploadId: uploadId,
-      MultipartUpload: {
-        Parts: completedParts.filter(
-          (p): p is { ETag?: string; PartNumber: number } => p !== undefined
-        ),
-      },
-    })
-  );
+    );
+  } catch (err) {
+    try {
+      await s3Client.send(
+        new AbortMultipartUploadCommand({
+          Bucket: bucketName,
+          Key: newKey,
+          UploadId: uploadId,
+        })
+      );
+    } catch {
+      // Best-effort cleanup; surface the original error.
+    }
+    throw err;
+  }
 };

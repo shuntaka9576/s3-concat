@@ -116,6 +116,58 @@ const s3Concat = new S3Concat({
 ```
 
 
+## Performance Tuning
+
+### `pLimit`
+
+`pLimit` is the total in-flight S3 I/O budget shared across every output
+file (one global semaphore). It caps the combined count of in-flight
+`UploadPart`, `UploadPartCopy`, and `GetObject` calls. The default is `5`.
+
+Increase it for high-throughput workloads (many parts per output, fast
+network); keep it low on memory-constrained runtimes such as small Lambda
+functions, where each in-flight upload part also pins ~64 KiB of stream
+buffer in memory.
+
+### Socket pool (`maxSockets`)
+
+> **Required when `pLimit ≥ 10`.** Each active part holds one `GetObject`
+> and one `UploadPart` socket concurrently. If `maxSockets ≤ pLimit`,
+> `UploadPart` requests queue inside the SDK and Smithy eventually aborts
+> them with a non-retryable streaming error that surfaces as
+> `AbortError: This operation was aborted`.
+
+`s3-concat` does not construct an `S3Client` for you, so the HTTP socket
+pool is yours to size. The default `NodeHttpHandler` keeps `maxSockets`
+at the Node `http.Agent` default (`50`).
+
+Set `maxSockets ≥ pLimit × 2` (each part needs 2 sockets, plus headroom
+for `CreateMultipartUpload` / `CompleteMultipartUpload` traffic):
+
+```ts
+import { Agent as HttpsAgent } from 'node:https';
+import { NodeHttpHandler } from '@smithy/node-http-handler';
+import { S3Client } from '@aws-sdk/client-s3';
+
+const pLimit = 50;
+const s3Client = new S3Client({
+  requestHandler: new NodeHttpHandler({
+    httpsAgent: new HttpsAgent({
+      maxSockets: pLimit * 2,
+      keepAlive: true,
+    }),
+  }),
+});
+```
+
+### Memory characteristics
+
+`UploadPart` streams source bytes through a 64 KiB coalescing buffer
+instead of materializing each part as one Buffer. In-flight memory scales
+as `O(pLimit × 64 KiB)` rather than `O(pLimit × 5 MiB × parts_per_output)`,
+which keeps tens-of-thousands-of-small-files workloads inside a 1 GiB
+Lambda envelope.
+
 ## License
 
 This project is licensed under the MIT License.

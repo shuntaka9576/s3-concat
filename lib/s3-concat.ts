@@ -82,7 +82,8 @@ export type ConcatParams = {
     | BuiltinJoinOrderCompareFnSpecifier;
   /**
    * The maximum number of concurrent asynchronous I/O operations.
-   * This limits the number of parallel S3 operations to avoid overwhelming the system.
+   * This limits the total in-flight `UploadPart` / `UploadPartCopy` /
+   * `GetObject` calls across all output files (one shared semaphore).
    * @default 5
    */
   pLimit?: number;
@@ -232,25 +233,27 @@ export class S3Concat {
       size: splitFile.s3Files.size,
     }));
 
+    // One shared semaphore caps the total in-flight S3 I/O across every
+    // output file. This replaces the v1.x "outer pLimit × inner pLimit"
+    // design, which let the effective concurrency reach pLimit² and made
+    // memory pressure scale with output count instead of just `pLimit`.
     const limit = pLimit(this.limitConcurrency);
 
     const keys = await Promise.all(
-      splitFileAndUploadTask.map((task) =>
-        limit(async () => {
-          const key = `${this.dstKey}/${task.keyName}`;
-          await s3Client.concatWithMultipartUpload(
-            this.s3Client,
-            this.dstBucketName,
-            key,
-            task.uploadTasks,
-            this.limitConcurrency
-          );
-          return {
-            key,
-            size: task.size,
-          };
-        })
-      )
+      splitFileAndUploadTask.map(async (task) => {
+        const key = `${this.dstKey}/${task.keyName}`;
+        await s3Client.concatWithMultipartUpload(
+          this.s3Client,
+          this.dstBucketName,
+          key,
+          task.uploadTasks,
+          limit
+        );
+        return {
+          key,
+          size: task.size,
+        };
+      })
     );
 
     return {
