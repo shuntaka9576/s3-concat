@@ -118,7 +118,35 @@ s3://my-bucket/out/concat_2.bin (3145728 bytes, 1 part)
 
 ### Example
 
-#### Example 1: Concatenating into a Single File
+#### Example 1: Copying a Single Heavy Object
+
+Pointing `s3-concat` at a single source turns it into a parallel multipart copier. Bytes move server-side via `UploadPartCopy`, and sources larger than 5 GiB (S3's per-part copy limit, and also the cap on a single `CopyObject` call) are automatically split into 5 GiB chunks uploaded in parallel — useful when the standard `CopyObject` API can't handle the object size in one shot.
+
+```ts
+import { S3Client } from '@aws-sdk/client-s3';
+import { S3Concat } from 's3-concat';
+
+const s3Client = new S3Client({});
+
+const main = async () => {
+  const s3Concat = new S3Concat({
+    s3Client,
+    srcBucketName: 'my-bucket',
+    dstBucketName: 'my-bucket',
+    dstPrefix: 'copied',
+    concatFileName: 'heavy-object.bin',
+  });
+
+  await s3Concat.addFiles('path/to/heavy-object.bin');
+  await s3Concat.concat();
+};
+
+main().then(() => console.log('success'));
+```
+
+`addFiles` resolves its argument as a `ListObjectsV2` prefix, so any other key starting with the same string is picked up too. When targeting a single object, make sure the key is unique under that prefix.
+
+#### Example 2: Concatenating into a Single File
 
 This example shows how to concatenate all files into a single file without using the minSize option.
 
@@ -149,7 +177,7 @@ main().then(() => console.log('success'));
 
 In this example, all files from the tmp/1gb prefix in the source bucket will be concatenated into a single file named final_concat.json.
 
-#### Example 2: Concatenating into Multiple Files with minSize
+#### Example 3: Concatenating into Multiple Files with minSize
 
 This example shows how to use the minSize option to split the concatenated files if the total size exceeds the specified limit. `minSize` only controls when to start a new output object — source files themselves are never split. Each source file always lands entirely inside a single output object; its bytes are never spread across two outputs, even when adding it pushes the current output well past `minSize` (for example, a 1 GiB source under `minSize: '5MiB'` produces one 1 GiB output, not 200 sliced outputs).
 
@@ -181,7 +209,7 @@ main().then(() => console.log('success'));
 
 In this example, files from the tmp/1gb prefix in the source bucket will be concatenated and split into multiple files if the total size exceeds 5GiB. The concatenated files will be named using the callback function, resulting in names like concat_1.json, concat_2.json, etc.
 
-#### Example 3: Custom Join Order Example
+#### Example 4: Custom Join Order Example
 
 It is possible to specify the join order using the joinOrder option. Although the presets keyNameDsc and keyNameAsc are supported, you can also customize the join order by providing your own function that conforms to the type JoinOrderCompareFn<T> (e.g., JoinOrderCompareFn<{ key: string; size: number; lastModified: Date }>).
 
