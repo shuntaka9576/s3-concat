@@ -46,6 +46,7 @@
     "@aws-sdk/client-s3": "3.1070.0",
     "@biomejs/biome": "2.5.0",
     "@floci/testcontainers": "0.1.0",
+    "@semantic-release/exec": "^7.1.0",
     "@vitest/coverage-v8": "4.1.8",
     "cspell": "10.0.1",
     "semantic-release": "25.0.5",
@@ -74,6 +75,18 @@
   "release": {
     "branches": [
       "main"
+    ],
+    "plugins": [
+      "@semantic-release/commit-analyzer",
+      "@semantic-release/release-notes-generator",
+      "@semantic-release/npm",
+      [
+        "@semantic-release/exec",
+        {
+          "prepareCmd": "pnpm run build"
+        }
+      ],
+      "@semantic-release/github"
     ]
   }
 }
