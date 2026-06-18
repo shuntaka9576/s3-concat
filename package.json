@@ -15,7 +15,7 @@
   },
   "scripts": {
     "build": "pnpm run clean && vite build",
-    "fix": "biome check . --apply-unsafe",
+    "fix": "biome check . --write --unsafe",
     "check": "pnpm run check:lint && pnpm run check:format && pnpm run check:type && pnpm run check:spell",
     "check:lint": "biome lint .",
     "check:format": "biome format .",
@@ -36,7 +36,7 @@
   },
   "devDependencies": {
     "@aws-sdk/client-s3": "3.1070.0",
-    "@biomejs/biome": "1.9.4",
+    "@biomejs/biome": "2.5.0",
     "@floci/testcontainers": "0.1.0",
     "@vitest/coverage-v8": "3.2.6",
     "cspell": "10.0.1",
@@ -55,14 +55,25 @@
     "url": "https://github.com/shuntaka9576/s3-concat/issues"
   },
   "homepage": "https://github.com/shuntaka9576/s3-concat#readme",
-  "keywords": ["aws", "s3", "concatenate", "multipart upload", "nodejs"],
+  "keywords": [
+    "aws",
+    "s3",
+    "concatenate",
+    "multipart upload",
+    "nodejs"
+  ],
   "engines": {
     "node": ">=22.22.3"
   },
   "release": {
-    "branches": ["main"]
+    "branches": [
+      "main"
+    ]
   },
   "pnpm": {
-    "onlyBuiltDependencies": ["@biomejs/biome", "esbuild"]
+    "onlyBuiltDependencies": [
+      "@biomejs/biome",
+      "esbuild"
+    ]
   }
 }

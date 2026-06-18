@@ -12,7 +12,7 @@
   "linter": {
     "enabled": true,
     "rules": {
-      "recommended": true,
+      "preset": "recommended",
       "correctness": {
         "noUnusedVariables": {
           "level": "error"
@@ -24,14 +24,15 @@
     }
   },
   "files": {
-    "ignore": [
-      "*.js",
-      "*.d.mts",
-      "node_modules",
-      "coverage",
-      "example",
-      "dist",
-      "pnpm-lock.yaml"
+    "includes": [
+      "**",
+      "!**/*.js",
+      "!**/*.d.mts",
+      "!**/node_modules",
+      "!**/coverage",
+      "!**/example",
+      "!**/dist",
+      "!**/pnpm-lock.yaml"
     ]
   }
 }

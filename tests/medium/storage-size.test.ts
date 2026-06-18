@@ -4,8 +4,8 @@ import {
   MiB,
   type StorageSize,
   type StorageUnit,
-  TiB,
   sizeToBytes,
+  TiB,
 } from '../../lib/std/storage-size';
 
 describe('sizeToBytes', () => {

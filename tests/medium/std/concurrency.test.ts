@@ -105,10 +105,12 @@ describe('pLimit', () => {
     expect(peak).toBe(1);
   });
 
-  test.each([0, -1, 1.5, Number.NaN])(
-    'throws TypeError for invalid concurrency %p',
-    (value) => {
-      expect(() => pLimit(value)).toThrow(TypeError);
-    }
-  );
+  test.each([
+    0,
+    -1,
+    1.5,
+    Number.NaN,
+  ])('throws TypeError for invalid concurrency %p', (value) => {
+    expect(() => pLimit(value)).toThrow(TypeError);
+  });
 });

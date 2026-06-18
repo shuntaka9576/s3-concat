@@ -7,10 +7,10 @@ import {
   UploadPartCommand,
   UploadPartCopyCommand,
 } from '@aws-sdk/client-s3';
-import pLimit from '../std/concurrency';
 import type { S3Client } from '../s3-concat';
+import pLimit from '../std/concurrency';
 import type { S3File } from './file';
-import { type UploadTask, getPartSizeForPartTask } from './task';
+import { getPartSizeForPartTask, type UploadTask } from './task';
 
 type S3FileInfo = { key: string; size: number; lastModified: Date };
 
@@ -23,9 +23,8 @@ const hasValidS3Properties = (content: {
   content.Size !== undefined &&
   content.LastModified !== undefined;
 
-const isNotDirectory = (content: {
-  Key: string;
-}): boolean => !content.Key.endsWith('/');
+const isNotDirectory = (content: { Key: string }): boolean =>
+  !content.Key.endsWith('/');
 
 export const getListFiles = async (
   s3Client: S3Client,
