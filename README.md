@@ -22,6 +22,8 @@ pnpm add s3-concat
 
 ```bash
 npm i -g s3-concat @aws-sdk/client-s3
+# or
+pnpm add -g s3-concat @aws-sdk/client-s3
 ```
 
 Uses the standard AWS SDK credential chain (`AWS_REGION`, `AWS_PROFILE`, …); a reproducible demo dataset and dry-run lives in [`scripts/cli-demo.sh`](./scripts/cli-demo.sh).
