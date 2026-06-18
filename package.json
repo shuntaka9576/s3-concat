@@ -23,6 +23,7 @@
     "check:spell": "cspell lint . --cache --gitignore",
     "clean": "rimraf dist",
     "test": "vitest run --config vitest.config.ts --coverage.enabled true --reporter=verbose",
+    "test:unit": "vitest run --config vitest.unit.config.ts --reporter=verbose",
     "test:sdk-matrix": "bash scripts/sdk-matrix.sh test",
     "e2e": "USE_REAL_S3=1 vitest run --config vitest.config.ts --reporter=verbose",
     "e2e:sdk-matrix": "bash scripts/sdk-matrix.sh e2e",
