@@ -6,7 +6,7 @@ import type { S3File } from './file';
 
 export interface BuildMergedBodyOptions {
   s3Client: S3Client;
-  bucketName: string;
+  srcBucketName: string;
   s3Files: S3File[];
   signal: AbortSignal;
   contentLength: number;
@@ -82,14 +82,14 @@ export const buildMergedBody = (opts: BuildMergedBodyOptions): MergedBody => {
       const range = `bytes=${f.start}-${f.size - 1}`;
       const getRes = await opts.s3Client.send(
         new GetObjectCommand({
-          Bucket: opts.bucketName,
+          Bucket: opts.srcBucketName,
           Key: f.key,
           Range: range,
         })
       );
       const body = getRes.Body as Readable | undefined;
       if (body === undefined) {
-        throw new Error(`empty body for s3://${opts.bucketName}/${f.key}`);
+        throw new Error(`empty body for s3://${opts.srcBucketName}/${f.key}`);
       }
       activeBody = body;
       try {
