@@ -74,14 +74,15 @@ const STREAMING_CHECKSUM_ALGORITHM = 'CRC32' satisfies ChecksumAlgorithm;
 
 export const concatWithMultipartUpload = async (
   s3Client: S3Client,
-  bucketName: string,
+  srcBucketName: string,
+  dstBucketName: string,
   newKey: string,
   tasks: UploadTask[],
   limit: LimitFunction
 ): Promise<void> => {
   const createRes = await s3Client.send(
     new CreateMultipartUploadCommand({
-      Bucket: bucketName,
+      Bucket: dstBucketName,
       Key: newKey,
       ChecksumAlgorithm: STREAMING_CHECKSUM_ALGORITHM,
     })
@@ -102,11 +103,11 @@ export const concatWithMultipartUpload = async (
           const partNumber = i + 1;
 
           if (task.uploadType === 'PartCopy') {
-            const copySource = `${bucketName}/${encodeCopySourceKey(task.s3File.key)}`;
+            const copySource = `${srcBucketName}/${encodeCopySourceKey(task.s3File.key)}`;
             const copyRange = `bytes=${task.start}-${task.end - 1}`;
             const copyRes = await s3Client.send(
               new UploadPartCopyCommand({
-                Bucket: bucketName,
+                Bucket: dstBucketName,
                 Key: newKey,
                 UploadId: uploadId,
                 PartNumber: partNumber,
@@ -131,7 +132,7 @@ export const concatWithMultipartUpload = async (
           const controller = new AbortController();
           const merged = buildMergedBody({
             s3Client,
-            bucketName,
+            srcBucketName,
             s3Files: task.s3Files,
             signal: controller.signal,
             contentLength: partSize,
@@ -139,7 +140,7 @@ export const concatWithMultipartUpload = async (
           try {
             const uploadRes = await s3Client.send(
               new UploadPartCommand({
-                Bucket: bucketName,
+                Bucket: dstBucketName,
                 Key: newKey,
                 UploadId: uploadId,
                 PartNumber: partNumber,
@@ -168,7 +169,7 @@ export const concatWithMultipartUpload = async (
 
     await s3Client.send(
       new CompleteMultipartUploadCommand({
-        Bucket: bucketName,
+        Bucket: dstBucketName,
         Key: newKey,
         UploadId: uploadId,
         MultipartUpload: {
@@ -182,7 +183,7 @@ export const concatWithMultipartUpload = async (
     try {
       await s3Client.send(
         new AbortMultipartUploadCommand({
-          Bucket: bucketName,
+          Bucket: dstBucketName,
           Key: newKey,
           UploadId: uploadId,
         })

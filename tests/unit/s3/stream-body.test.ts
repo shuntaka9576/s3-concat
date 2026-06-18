@@ -39,7 +39,7 @@ describe('buildMergedBody', () => {
     const controller = new AbortController();
     const merged = buildMergedBody({
       s3Client: { send },
-      bucketName: 'b',
+      srcBucketName: 'b',
       s3Files: files,
       signal: controller.signal,
       contentLength: 12,
@@ -59,7 +59,7 @@ describe('buildMergedBody', () => {
 
     const merged = buildMergedBody({
       s3Client: { send },
-      bucketName: 'b',
+      srcBucketName: 'b',
       s3Files: files,
       signal: new AbortController().signal,
       contentLength: 4,
@@ -77,7 +77,7 @@ describe('buildMergedBody', () => {
 
     const merged = buildMergedBody({
       s3Client: { send },
-      bucketName: 'b',
+      srcBucketName: 'b',
       s3Files: files,
       signal: new AbortController().signal,
       contentLength: 4,
@@ -93,7 +93,7 @@ describe('buildMergedBody', () => {
 
     const merged = buildMergedBody({
       s3Client: { send },
-      bucketName: 'b',
+      srcBucketName: 'b',
       s3Files: files,
       signal: new AbortController().signal,
       contentLength: 1,
@@ -116,7 +116,7 @@ describe('buildMergedBody', () => {
     const controller = new AbortController();
     const merged = buildMergedBody({
       s3Client: { send },
-      bucketName: 'b',
+      srcBucketName: 'b',
       s3Files: files,
       signal: controller.signal,
       contentLength: 9,
