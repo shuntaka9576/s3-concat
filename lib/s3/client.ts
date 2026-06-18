@@ -7,7 +7,7 @@ import {
   UploadPartCommand,
   UploadPartCopyCommand,
 } from '@aws-sdk/client-s3';
-import pLimit from 'p-limit';
+import pLimit from '../std/concurrency';
 import type { S3Client } from '../s3-concat';
 import type { S3File } from './file';
 import { type UploadTask, getPartSizeForPartTask } from './task';
