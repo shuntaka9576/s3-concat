@@ -3,7 +3,7 @@ import type { TestS3Config } from '../medium/setup/global-setup';
 
 export const createTestS3Client = (config: TestS3Config): S3Client => {
   if (config.mode === 'aws') {
-    // Use the ambient AWS SDK credential chain (env vars, IMDS, aws-vault, ...).
+    // Use the ambient AWS SDK credential chain (env vars, aws-vault, etc.).
     return new S3Client({ region: config.region });
   }
   return new S3Client({

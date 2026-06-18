@@ -84,7 +84,7 @@ Optional:
   -v, --version                       Show version and exit
 
 AWS credentials/region are resolved by the AWS SDK via the standard
-environment (AWS_REGION, AWS_PROFILE, ~/.aws/config, IMDS, ...).
+environment (AWS_REGION, AWS_PROFILE, ~/.aws/config, ...).
 `;
 
 export const parseCliArgs = (argv: readonly string[]): ParseResult => {

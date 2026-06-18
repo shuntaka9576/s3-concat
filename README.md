@@ -4,7 +4,7 @@
 
 `s3-concat` is a library for concatenating multiple files stored in AWS S3 into a single file using multipart upload. This is particularly useful for handling large datasets and optimizing S3 operations. Files larger than 5MiB are uploaded using multipart upload, while files smaller than 5MiB are concatenated via streaming. Additionally, the order in which the source files are concatenated can also be controlled.
 
-`s3-concat` has zero runtime dependencies. `@aws-sdk/client-s3` is declared as a `peerDependency`, so the SDK version stays under your control and is not duplicated in your tree. Install it alongside `s3-concat`:
+`s3-concat` has zero runtime dependencies. `@aws-sdk/client-s3` is declared as a `peerDependency`, so the SDK version stays under your control and is not duplicated in your tree. Install it alongside `s3-concat`.
 
 ```bash
 pnpm add s3-concat @aws-sdk/client-s3
@@ -15,6 +15,100 @@ pnpm add s3-concat @aws-sdk/client-s3
 ```bash
 pnpm add s3-concat
 ```
+
+### CLI
+
+`s3-concat` also ships with a CLI for one-off concat jobs from the shell. Install it globally alongside the AWS SDK.
+
+```bash
+npm i -g s3-concat @aws-sdk/client-s3
+```
+
+Uses the standard AWS SDK credential chain (`AWS_REGION`, `AWS_PROFILE`, …); a reproducible demo dataset and dry-run lives in [`scripts/cli-demo.sh`](./scripts/cli-demo.sh).
+
+Each output object is assembled via S3 multipart upload using one of two part types.
+
+- **`UploadPartCopy`** — for source files ≥ 5 MiB. S3 copies the byte range server-side, so no bytes flow through the client. Sources larger than 5 GiB are split into 5 GiB chunks (S3's per-part copy limit).
+- **`UploadPart`** — for source files < 5 MiB and any leftover tail of a copied file. Bytes are streamed through the client and coalesced with adjacent small files until each part reaches the 5 MiB minimum.
+
+```bash
+$ aws s3 ls s3://my-bucket/src/
+2026-06-18 14:13:29 5370806272 a.bin
+2026-06-18 14:13:29 6442450944 b.bin
+2026-06-18 14:13:29    3145728 c.bin
+
+# Single output. --dry-run prints the multipart plan without writing.
+$ s3-concat \
+    --src-bucket my-bucket \
+    --dst-bucket my-bucket \
+    --src-prefix src \
+    --dst-prefix out \
+    --concat-file-name merged.bin \
+    --join-order keyNameAsc \
+    --dry-run
+dry-run: 3 source file(s), 11816402944 bytes -> 1 output object(s)
+
+s3://my-bucket/out/merged.bin (11816402944 bytes, 5 parts)
+├─ UploadPartCopy  5368709120 bytes  s3://my-bucket/src/a.bin bytes=0-5368709119
+├─ UploadPart      5242880 bytes
+│  ├─ s3://my-bucket/src/a.bin (2097152 bytes)
+│  └─ s3://my-bucket/src/b.bin (3145728 bytes)
+├─ UploadPartCopy  5368709120 bytes  s3://my-bucket/src/b.bin bytes=3145728-5371854847
+├─ UploadPartCopy  1070596096 bytes  s3://my-bucket/src/b.bin bytes=5371854848-6442450943
+└─ UploadPart      3145728 bytes
+   └─ s3://my-bucket/src/c.bin (3145728 bytes)
+
+# Drop --dry-run to commit.
+$ s3-concat ... --concat-file-name merged.bin
+wrote s3://my-bucket/out/merged.bin (11816402944 bytes)
+
+# Split output via --concat-file-name-template + --min-size.
+# {i} expands to a 1-based index per output; --json gives a machine-readable result.
+$ s3-concat \
+    --src-bucket my-bucket \
+    --dst-bucket my-bucket \
+    --src-prefix src \
+    --dst-prefix out \
+    --concat-file-name-template 'concat_{i}.bin' \
+    --min-size 7GiB \
+    --join-order keyNameAsc \
+    --dry-run
+dry-run: 3 source file(s), 11816402944 bytes -> 2 output object(s)
+
+s3://my-bucket/out/concat_1.bin (11813257216 bytes, 4 parts)
+├─ UploadPartCopy  5368709120 bytes  s3://my-bucket/src/a.bin bytes=0-5368709119
+├─ UploadPart      5242880 bytes
+│  ├─ s3://my-bucket/src/a.bin (2097152 bytes)
+│  └─ s3://my-bucket/src/b.bin (3145728 bytes)
+├─ UploadPartCopy  5368709120 bytes  s3://my-bucket/src/b.bin bytes=3145728-5371854847
+└─ UploadPartCopy  1070596096 bytes  s3://my-bucket/src/b.bin bytes=5371854848-6442450943
+
+s3://my-bucket/out/concat_2.bin (3145728 bytes, 1 part)
+└─ UploadPart      3145728 bytes
+   └─ s3://my-bucket/src/c.bin (3145728 bytes)
+```
+
+<details>
+<summary><strong>Options</strong></summary>
+
+| Option | Description |
+| --- | --- |
+| `--src-bucket <name>` | Source bucket name (required) |
+| `--dst-bucket <name>` | Destination bucket name (required) |
+| `--src-prefix <prefix>` | Source key prefix; repeat to scan multiple prefixes (required) |
+| `--dst-prefix <prefix>` | Destination key prefix (required) |
+| `--concat-file-name <name>` | Single output object name (mutually exclusive with template) |
+| `--concat-file-name-template <t>` | Template for split outputs; must contain `{i}` |
+| `--min-size <size>` | Split once an output reaches this size, e.g. `5GiB`, `100MiB` |
+| `--p-limit <n>` | Concurrency limit (default 5) |
+| `--join-order <order>` | `fetchOrder` (default), `keyNameAsc`, or `keyNameDsc` |
+| `--dry-run` | Print plan without performing the concat |
+| `--verbose` | Verbose logging to stderr |
+| `--json` | Emit the result as JSON on stdout |
+| `-h, --help` | Show help |
+| `-v, --version` | Show version |
+
+</details>
 
 ## Usage
 
@@ -120,73 +214,6 @@ const s3Concat = new S3Concat({
 ```
 
 
-## CLI
-
-<details>
-<summary><strong>Show usage and options</strong></summary>
-
-`s3-concat` also ships with a CLI for one-off concat jobs from the shell. Install it globally alongside the AWS SDK.
-
-```bash
-npm i -g s3-concat @aws-sdk/client-s3
-```
-
-AWS credentials and region are resolved by the AWS SDK using the standard environment (`AWS_REGION`, `AWS_PROFILE`, `~/.aws/config`, IMDS, ...).
-
-### Usage
-
-```bash
-s3-concat \
-  --src-bucket my-source-bucket \
-  --src-prefix tmp/1gb \
-  --dst-bucket my-destination-bucket \
-  --dst-prefix output \
-  --concat-file-name final_concat.json
-```
-
-**Split by minimum size**
-
-```bash
-s3-concat \
-  --src-bucket my-source-bucket \
-  --src-prefix tmp/1gb \
-  --dst-bucket my-destination-bucket \
-  --dst-prefix output \
-  --concat-file-name-template 'concat_{i}.json' \
-  --min-size 5GiB
-```
-
-`{i}` is replaced with a 1-based index for each split output.
-
-**Options**
-
-| Option | Description |
-| --- | --- |
-| `--src-bucket <name>` | Source bucket name (required) |
-| `--dst-bucket <name>` | Destination bucket name (required) |
-| `--src-prefix <prefix>` | Source key prefix; repeat to scan multiple prefixes (required) |
-| `--dst-prefix <prefix>` | Destination key prefix (required) |
-| `--concat-file-name <name>` | Single output object name (mutually exclusive with template) |
-| `--concat-file-name-template <t>` | Template for split outputs; must contain `{i}` |
-| `--min-size <size>` | Split once an output reaches this size, e.g. `5GiB`, `100MiB` |
-| `--p-limit <n>` | Concurrency limit (default 5) |
-| `--join-order <order>` | `fetchOrder` (default), `keyNameAsc`, or `keyNameDsc` |
-| `--dry-run` | Print plan without performing the concat |
-| `--verbose` | Verbose logging to stderr |
-| `--json` | Emit the result as JSON on stdout |
-| `-h, --help` | Show help |
-| `-v, --version` | Show version |
-
-**JSON output**
-
-Pipe the result into `jq` or any structured-output consumer.
-
-```bash
-s3-concat ... --json | jq '.keys[].key'
-```
-
-</details>
-
 ## Performance Tuning
 
 ### `pLimit`
@@ -213,7 +240,7 @@ pool is yours to size. The default `NodeHttpHandler` keeps `maxSockets`
 at the Node `http.Agent` default (`50`).
 
 Set `maxSockets ≥ pLimit × 2` (each part needs 2 sockets, plus headroom
-for `CreateMultipartUpload` / `CompleteMultipartUpload` traffic):
+for `CreateMultipartUpload` / `CompleteMultipartUpload` traffic).
 
 ```ts
 import { Agent as HttpsAgent } from 'node:https';

@@ -77,25 +77,55 @@ export const run = async (options: RunOptions): Promise<number> => {
   }
 
   if (config.dryRun) {
-    const summary = {
-      kind: 'dry-run' as const,
-      srcBucket: config.srcBucket,
-      dstBucket: config.dstBucket,
-      dstPrefix: config.dstPrefix,
-      srcPrefixes: config.srcPrefixes,
-      minSize: config.minSize,
-      pLimit: config.pLimit,
-      joinOrder: config.joinOrder,
-      output: config.output,
-    };
+    const planResult = s3Concat.plan();
     if (config.json) {
-      stdio.stdout.write(`${JSON.stringify(summary)}\n`);
+      stdio.stdout.write(`${JSON.stringify(planResult)}\n`);
+    } else if (planResult.kind === 'fileNotFound') {
+      stdio.stdout.write('no files matched the given prefix(es).\n');
+    } else if (planResult.kind === 'allEmpty') {
+      stdio.stdout.write(
+        `all ${planResult.emptyKeys.length} matched file(s) are empty; nothing to concat.\n`
+      );
     } else {
       stdio.stdout.write(
-        `dry-run: would concat files from ${config.srcPrefixes
-          .map((p) => `s3://${config.srcBucket}/${p}`)
-          .join(', ')} into s3://${config.dstBucket}/${config.dstPrefix}/\n`
+        `dry-run: ${planResult.totalFiles} source file(s), ${planResult.totalBytes} bytes -> ${planResult.outputs.length} output object(s)\n`
       );
+      for (const output of planResult.outputs) {
+        const n = output.parts.length;
+        stdio.stdout.write(
+          `\ns3://${config.dstBucket}/${output.key} (${output.size} bytes, ${n} part${n === 1 ? '' : 's'})\n`
+        );
+        for (let i = 0; i < output.parts.length; i++) {
+          const part = output.parts[i];
+          if (part === undefined) continue;
+          const isLastPart = i === output.parts.length - 1;
+          const partBranch = isLastPart ? '└─' : '├─';
+          const sourceIndent = isLastPart ? '   ' : '│  ';
+          if (part.kind === 'PartCopy') {
+            stdio.stdout.write(
+              `${partBranch} UploadPartCopy  ${part.size} bytes  s3://${config.srcBucket}/${part.source.key} bytes=${part.source.rangeStart}-${part.source.rangeEnd - 1}\n`
+            );
+          } else {
+            stdio.stdout.write(
+              `${partBranch} UploadPart      ${part.size} bytes\n`
+            );
+            for (let j = 0; j < part.sources.length; j++) {
+              const src = part.sources[j];
+              if (src === undefined) continue;
+              const isLastSrc = j === part.sources.length - 1;
+              const srcBranch = isLastSrc ? '└─' : '├─';
+              stdio.stdout.write(
+                `${sourceIndent}${srcBranch} s3://${config.srcBucket}/${src.key} (${src.bytes} bytes)\n`
+              );
+            }
+          }
+        }
+      }
+      if (planResult.skippedEmptyKeys.length > 0) {
+        stdio.stdout.write(
+          `\n${planResult.skippedEmptyKeys.length} empty file(s) would be skipped.\n`
+        );
+      }
     }
     return 0;
   }
