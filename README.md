@@ -120,6 +120,73 @@ const s3Concat = new S3Concat({
 ```
 
 
+## CLI
+
+<details>
+<summary><strong>Show usage and options</strong></summary>
+
+`s3-concat` also ships with a CLI for one-off concat jobs from the shell. Install it globally alongside the AWS SDK.
+
+```bash
+npm i -g s3-concat @aws-sdk/client-s3
+```
+
+AWS credentials and region are resolved by the AWS SDK using the standard environment (`AWS_REGION`, `AWS_PROFILE`, `~/.aws/config`, IMDS, ...).
+
+### Usage
+
+```bash
+s3-concat \
+  --src-bucket my-source-bucket \
+  --src-prefix tmp/1gb \
+  --dst-bucket my-destination-bucket \
+  --dst-prefix output \
+  --concat-file-name final_concat.json
+```
+
+**Split by minimum size**
+
+```bash
+s3-concat \
+  --src-bucket my-source-bucket \
+  --src-prefix tmp/1gb \
+  --dst-bucket my-destination-bucket \
+  --dst-prefix output \
+  --concat-file-name-template 'concat_{i}.json' \
+  --min-size 5GiB
+```
+
+`{i}` is replaced with a 1-based index for each split output.
+
+**Options**
+
+| Option | Description |
+| --- | --- |
+| `--src-bucket <name>` | Source bucket name (required) |
+| `--dst-bucket <name>` | Destination bucket name (required) |
+| `--src-prefix <prefix>` | Source key prefix; repeat to scan multiple prefixes (required) |
+| `--dst-prefix <prefix>` | Destination key prefix (required) |
+| `--concat-file-name <name>` | Single output object name (mutually exclusive with template) |
+| `--concat-file-name-template <t>` | Template for split outputs; must contain `{i}` |
+| `--min-size <size>` | Split once an output reaches this size, e.g. `5GiB`, `100MiB` |
+| `--p-limit <n>` | Concurrency limit (default 5) |
+| `--join-order <order>` | `fetchOrder` (default), `keyNameAsc`, or `keyNameDsc` |
+| `--dry-run` | Print plan without performing the concat |
+| `--verbose` | Verbose logging to stderr |
+| `--json` | Emit the result as JSON on stdout |
+| `-h, --help` | Show help |
+| `-v, --version` | Show version |
+
+**JSON output**
+
+Pipe the result into `jq` or any structured-output consumer.
+
+```bash
+s3-concat ... --json | jq '.keys[].key'
+```
+
+</details>
+
 ## Performance Tuning
 
 ### `pLimit`
