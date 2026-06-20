@@ -1,11 +1,13 @@
 import * as s3Client from './s3/client';
 import { S3File } from './s3/file';
 import {
+  newPartCopyTask,
+  newPartTask,
   planedSplitFile as planedSplitFiles,
   planedUploadTask,
   type UploadTask,
 } from './s3/task';
-import pLimit from './std/concurrency';
+import pLimit, { type LimitFunction } from './std/concurrency';
 import { Deque } from './std/deque';
 import {
   type StorageSize,
@@ -48,7 +50,13 @@ export type PlannedPart =
       kind: 'Part';
       partNumber: number;
       size: number;
-      sources: { key: string; bytes: number }[];
+      /**
+       * Sources read sequentially via `GetObject` and coalesced into one
+       * upload. `rangeStart` is the byte offset within the source; for most
+       * sources it is `0`, but the first source of a Part right after a
+       * `PartCopy` ate the file's head will have a non-zero `rangeStart`.
+       */
+      sources: { key: string; rangeStart: number; bytes: number }[];
     };
 
 export type PlannedOutput = {
@@ -57,16 +65,53 @@ export type PlannedOutput = {
   parts: PlannedPart[];
 };
 
+export type Plan = {
+  kind: 'planned';
+  srcBucketName: string;
+  dstBucketName: string;
+  totalFiles: number;
+  totalBytes: number;
+  skippedEmptyKeys: string[];
+  outputs: PlannedOutput[];
+};
+
 export type PlanResult =
-  | {
-      kind: 'plan';
-      totalFiles: number;
-      totalBytes: number;
-      skippedEmptyKeys: string[];
-      outputs: PlannedOutput[];
-    }
+  | Plan
   | { kind: 'fileNotFound' }
   | { kind: 'allEmpty'; emptyKeys: string[] };
+
+export type ExecutePlanParams = {
+  /**
+   * The S3 client to use for operations.
+   */
+  s3Client: S3Client;
+  /**
+   * The maximum number of concurrent asynchronous I/O operations.
+   * @default 5
+   */
+  pLimit?: number;
+  /**
+   * When `true`, pre-flight `HeadObject` every source key referenced by the
+   * plan and verify each object still has at least the byte range the plan
+   * needs. If any key is missing or has shrunk, the call rejects with a
+   * drift error before any multipart upload is created.
+   *
+   * When `false` (the default), `executePlan` skips the check and dispatches
+   * uploads immediately. The plan is assumed to be a faithful snapshot of
+   * the source bucket — if a referenced object was deleted or truncated
+   * since `plan()` ran, behavior depends on the part type: `UploadPartCopy`
+   * surfaces the S3 error promptly, but a streaming `Part` (sources < 5 MiB
+   * or trailing bytes of larger files) may hang up to the SDK's stream
+   * timeout and surface an unhandled rejection.
+   *
+   * Set this to `true` for any flow where the plan→execute gap is
+   * non-trivial (Step Functions Wait state, Slack approval, source buckets
+   * with lifecycle rules).
+   *
+   * @default false
+   */
+  check?: boolean;
+};
 
 export type ConcatParams = {
   /**
@@ -274,6 +319,7 @@ export class S3Concat {
         }
         const sources = task.s3Files.map((f) => ({
           key: f.key,
+          rangeStart: f.start,
           bytes: f.remainSize(),
         }));
         const size = sources.reduce((acc, s) => acc + s.bytes, 0);
@@ -287,7 +333,9 @@ export class S3Concat {
     });
 
     return {
-      kind: 'plan',
+      kind: 'planned',
+      srcBucketName: this.srcBucketName,
+      dstBucketName: this.dstBucketName,
       totalFiles: nonEmpty.length,
       totalBytes,
       skippedEmptyKeys: emptyKeys,
@@ -296,69 +344,134 @@ export class S3Concat {
   }
 
   async concat(): Promise<ConcatResult> {
-    if (this.s3Files.length === 0) {
-      return { kind: 'fileNotFound' };
+    const planResult = this.plan();
+    if (planResult.kind !== 'planned') {
+      return planResult;
     }
 
-    const emptyKeys: string[] = [];
-    const nonEmpty: S3FileMeta[] = [];
-    for (const f of this.s3Files) {
-      if (f.size === 0) {
-        emptyKeys.push(f.key);
-      } else {
-        nonEmpty.push(f);
-      }
-    }
-
-    if (nonEmpty.length === 0) {
-      return { kind: 'allEmpty', emptyKeys };
-    }
-
-    const s3Files = this.toS3Files(nonEmpty);
-    const splitFiles = planedSplitFiles(
-      this.concatFileNameCallback,
-      s3Files,
-      this.minSize
-    );
-
-    const splitFileAndUploadTask: {
-      keyName: string;
-      uploadTasks: UploadTask[];
-      size: number;
-    }[] = splitFiles.map((splitFile) => ({
-      keyName: splitFile.keyName,
-      uploadTasks: planedUploadTask(splitFile.s3Files.files),
-      size: splitFile.s3Files.size,
-    }));
-
-    // One shared semaphore caps the total in-flight S3 I/O across every
-    // output file. This replaces the v1.x "outer pLimit × inner pLimit"
-    // design, which let the effective concurrency reach pLimit² and made
-    // memory pressure scale with output count instead of just `pLimit`.
-    const limit = pLimit(this.limitConcurrency);
-
-    const keys = await Promise.all(
-      splitFileAndUploadTask.map(async (task) => {
-        const key = `${this.dstKey}/${task.keyName}`;
-        await s3Client.concatWithMultipartUpload(
-          this.s3Client,
-          this.srcBucketName,
-          this.dstBucketName,
-          key,
-          task.uploadTasks,
-          limit
-        );
-        return {
-          key,
-          size: task.size,
-        };
-      })
-    );
+    const keys = await S3Concat.executePlan(planResult, {
+      s3Client: this.s3Client,
+      pLimit: this.limitConcurrency,
+    });
 
     return {
       kind: 'concatenated',
       keys,
-      skippedEmptyKeys: emptyKeys,
+      skippedEmptyKeys: planResult.skippedEmptyKeys,
     };
   }
+
+  /**
+   * Execute a previously computed {@link Plan} without re-listing source
+   * objects. The plan is self-contained — `srcBucketName` and `dstBucketName`
+   * are read from the plan itself, and the source keys / byte ranges encoded
+   * in `parts` are used as-is.
+   *
+   * Source drift is **not** validated upfront. If a source key has been
+   * deleted or its size changed since {@link S3Concat.plan} ran, the underlying
+   * S3 API call (`UploadPartCopy` / `GetObject`) throws and the error is
+   * propagated. Decide on retry / re-plan at the caller.
+   *
+   * The destination keys are taken verbatim from `plan.outputs[].key` —
+   * `dstPrefix` is already baked in.
+   */
+  static async executePlan(
+    plan: Plan,
+    params: ExecutePlanParams
+  ): Promise<{ key: string; size: number }[]> {
+    const limitConcurrency = params.pLimit ?? DEFAULT_LIMIT_CONCURRENCY;
+    // One shared semaphore caps the total in-flight S3 I/O across every
+    // output file (same design as `concat()`).
+    const limit = pLimit(limitConcurrency);
+
+    if (params.check === true) {
+      await verifyPlanSources(
+        params.s3Client,
+        plan.srcBucketName,
+        collectRequiredBytes(plan),
+        limit
+      );
+    }
+
+    return Promise.all(
+      plan.outputs.map(async (output) => {
+        const uploadTasks = output.parts.map(toUploadTask);
+        await s3Client.concatWithMultipartUpload(
+          params.s3Client,
+          plan.srcBucketName,
+          plan.dstBucketName,
+          output.key,
+          uploadTasks,
+          limit
+        );
+        return { key: output.key, size: output.size };
+      })
+    );
+  }
 }
+
+const collectRequiredBytes = (plan: Plan): Map<string, number> => {
+  const required = new Map<string, number>();
+  const bump = (key: string, value: number): void => {
+    const prev = required.get(key) ?? 0;
+    if (value > prev) required.set(key, value);
+  };
+  for (const output of plan.outputs) {
+    for (const part of output.parts) {
+      if (part.kind === 'PartCopy') {
+        bump(part.source.key, part.source.rangeEnd);
+      } else {
+        for (const s of part.sources) {
+          bump(s.key, s.rangeStart + s.bytes);
+        }
+      }
+    }
+  }
+  return required;
+};
+
+const verifyPlanSources = async (
+  client: S3Client,
+  bucket: string,
+  required: Map<string, number>,
+  limit: LimitFunction
+): Promise<void> => {
+  const drift: string[] = [];
+  await Promise.all(
+    [...required.entries()].map(([key, requiredBytes]) =>
+      limit(async () => {
+        const size = await s3Client.headObjectSize(client, bucket, key);
+        if (size === undefined) {
+          drift.push(`missing s3://${bucket}/${key}`);
+        } else if (size < requiredBytes) {
+          drift.push(
+            `truncated s3://${bucket}/${key} (size ${size}, plan needs ${requiredBytes})`
+          );
+        }
+      })
+    )
+  );
+  if (drift.length > 0) {
+    throw new Error(`plan drift detected: ${drift.join('; ')}`);
+  }
+};
+
+const toUploadTask = (part: PlannedPart): UploadTask => {
+  if (part.kind === 'PartCopy') {
+    // S3File.size is only consulted by code that walks remainSize(); for
+    // PartCopy the executor only reads .key / .start / .end, so any size that
+    // satisfies `start <= size` works. Use the range end to keep invariants.
+    return newPartCopyTask(
+      new S3File(part.source.key, part.source.rangeEnd, part.source.rangeStart),
+      part.source.rangeStart,
+      part.source.rangeEnd
+    );
+  }
+  // buildMergedBody reads `bytes=${start}-${size - 1}`, so size must equal
+  // `start + bytes` to drain exactly `bytes` from the source.
+  return newPartTask(
+    part.sources.map(
+      (s) => new S3File(s.key, s.rangeStart + s.bytes, s.rangeStart)
+    )
+  );
+};
