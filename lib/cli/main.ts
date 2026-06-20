@@ -114,8 +114,12 @@ export const run = async (options: RunOptions): Promise<number> => {
               if (src === undefined) continue;
               const isLastSrc = j === part.sources.length - 1;
               const srcBranch = isLastSrc ? '└─' : '├─';
+              const rangeSuffix =
+                src.rangeStart > 0
+                  ? ` bytes=${src.rangeStart}-${src.rangeStart + src.bytes - 1}`
+                  : '';
               stdio.stdout.write(
-                `${sourceIndent}${srcBranch} s3://${config.srcBucket}/${src.key} (${src.bytes} bytes)\n`
+                `${sourceIndent}${srcBranch} s3://${config.srcBucket}/${src.key} (${src.bytes} bytes)${rangeSuffix}\n`
               );
             }
           }

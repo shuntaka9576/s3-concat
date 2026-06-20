@@ -4,6 +4,7 @@ import {
   type CompletedPart,
   CompleteMultipartUploadCommand,
   CreateMultipartUploadCommand,
+  HeadObjectCommand,
   ListObjectsV2Command,
   type ListObjectsV2CommandOutput,
   UploadPartCommand,
@@ -62,6 +63,31 @@ export const getListFiles = async (
   } while (continuationToken !== undefined);
 
   return fileList;
+};
+
+/**
+ * Returns the ContentLength of the object, or `undefined` if it does not
+ * exist. Any other error (permissions, throttling, network) is rethrown.
+ */
+export const headObjectSize = async (
+  s3Client: S3Client,
+  bucketName: string,
+  key: string
+): Promise<number | undefined> => {
+  try {
+    const res = await s3Client.send(
+      new HeadObjectCommand({ Bucket: bucketName, Key: key })
+    );
+    return res.ContentLength;
+  } catch (err) {
+    const name = (err as { name?: string }).name;
+    // S3 returns 404 NotFound for HeadObject on a missing key; SDK exposes
+    // it as either NotFound (most paths) or NoSuchKey (some legacy paths).
+    if (name === 'NotFound' || name === 'NoSuchKey') {
+      return undefined;
+    }
+    throw err;
+  }
 };
 
 const encodeCopySourceKey = (key: string): string =>

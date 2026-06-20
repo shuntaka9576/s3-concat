@@ -250,6 +250,38 @@ const s3Concat = new S3Concat({
 ```
 
 
+#### Example 5: Split plan and execute across steps (Durable Lambda / Step Functions)
+
+`plan()` returns a JSON-serializable snapshot. Persist it as a checkpoint, then replay it later with `S3Concat.executePlan(plan, …)` — no re-listing of the source bucket.
+
+```ts
+import { S3Client } from '@aws-sdk/client-s3';
+import { type Plan, S3Concat } from 's3-concat';
+
+const s3Client = new S3Client({});
+
+// Step A: build the plan and persist it as a Step Functions state, Durable Functions checkpoint, Slack approval payload, etc.
+const planStep = async (): Promise<Plan> => {
+  const s3c = new S3Concat({
+    s3Client,
+    srcBucketName: 'athena-unload-output',
+    dstBucketName: 'merged-bucket',
+    dstPrefix: 'merged',
+    concatFileName: 'result.jsonl',
+  });
+  await s3c.addFiles('unload/query-id-xxxx/');
+  const result = s3c.plan();
+  if (result.kind !== 'planned') throw new Error(`nothing to concat: ${result.kind}`);
+  return result;
+};
+
+// Step B: replay. Bucket names come from the plan (mutate to redirect).
+// `check: true` HeadObjects every source first; set it when the source may drift between plan() and executePlan().
+// Without it, a deleted or shrunk source < 5 MiB stalls the UploadPart on the SDK's stream timeout with an unhandled rejection; ≥ 5 MiB sources fail fast via UploadPartCopy.
+const executeStep = (plan: Plan) =>
+  S3Concat.executePlan(plan, { s3Client, check: true });
+```
+
 ## Performance Tuning
 
 ### `pLimit`
