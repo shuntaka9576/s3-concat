@@ -39,6 +39,8 @@ Each output object is assembled via S3 multipart upload using one of two part ty
 - **`UploadPartCopy`** — for source files ≥ 5 MiB. S3 copies the byte range server-side, so no bytes flow through the client. Sources larger than 5 GiB are split into 5 GiB chunks (S3's per-part copy limit).
 - **`UploadPart`** — for source files < 5 MiB and any leftover tail of a copied file. Bytes are streamed through the client and coalesced with adjacent small files until each part reaches the 5 MiB minimum.
 
+![Multipart upload plan: how source objects map onto UploadPartCopy and UploadPart calls](./docs/images/multipart-upload-plan.png)
+
 ```bash
 $ aws s3 ls s3://my-bucket/src/
 2026-06-18 14:13:29 5370806272 a.bin
