@@ -8,6 +8,13 @@ s3-concat is a zero-dependency library and CLI that concatenates multiple AWS S3
 - Merge fragmented JSONL/CSV files into larger objects while preserving data order
 - Efficiently process mixed workloads with object sizes ranging from 5 MiB to 5 GiB+
 
+Each output object is assembled via S3 multipart upload using one of two part types.
+
+- **`UploadPartCopy`** — for source files ≥ 5 MiB. S3 copies the byte range server-side, so no bytes flow through the client. Sources larger than 5 GiB are split into 5 GiB chunks (S3's per-part copy limit).
+- **`UploadPart`** — for source files < 5 MiB and any leftover tail of a copied file. Bytes are streamed through the client and coalesced with adjacent small files until each part reaches the 5 MiB minimum.
+
+![Multipart upload plan: how source objects map onto UploadPartCopy and UploadPart calls](./docs/images/multipart-upload-plan.png)
+
 ## Installation
 
 ### Library
@@ -33,13 +40,6 @@ pnpm add -g s3-concat @aws-sdk/client-s3
 ```
 
 Uses the standard AWS SDK credential chain (`AWS_REGION`, `AWS_PROFILE`, …); a reproducible demo dataset and dry-run lives in [`scripts/cli-demo.sh`](./scripts/cli-demo.sh).
-
-Each output object is assembled via S3 multipart upload using one of two part types.
-
-- **`UploadPartCopy`** — for source files ≥ 5 MiB. S3 copies the byte range server-side, so no bytes flow through the client. Sources larger than 5 GiB are split into 5 GiB chunks (S3's per-part copy limit).
-- **`UploadPart`** — for source files < 5 MiB and any leftover tail of a copied file. Bytes are streamed through the client and coalesced with adjacent small files until each part reaches the 5 MiB minimum.
-
-![Multipart upload plan: how source objects map onto UploadPartCopy and UploadPart calls](./docs/images/multipart-upload-plan.png)
 
 ```bash
 $ aws s3 ls s3://my-bucket/src/
