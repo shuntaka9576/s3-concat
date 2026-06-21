@@ -4,7 +4,6 @@
     "deque",
     "esbuild",
     "floci",
-    "localstack",
     "pnpm",
     "protobufjs",
     "shuntaka",
@@ -18,13 +17,5 @@
     "coverage",
     "pnpm-lock.yaml",
     "package-lock.json"
-  ],
-  "ignoreRegExpList": [""],
-  "languageSettings": [
-    {
-      "languageId": "*",
-      "dictionaries": [],
-      "dictionaryDefinitions": []
-    }
   ]
 }
