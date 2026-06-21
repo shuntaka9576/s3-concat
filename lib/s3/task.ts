@@ -37,7 +37,7 @@ type SplitGroup = {
   s3Files: { files: Deque<S3File>; size: number };
 };
 
-export const planedSplitFile = (
+export const plannedSplitFiles = (
   concatFileNameCallback: (idx?: number) => string,
   s3Files: { files: Deque<S3File>; size: number },
   minValue?: number
@@ -151,7 +151,7 @@ const planSmallFilePart = (
   tasks.push(partTask);
 };
 
-export const planedUploadTask = (s3Files: Deque<S3File>): UploadTask[] => {
+export const plannedUploadTasks = (s3Files: Deque<S3File>): UploadTask[] => {
   const tasks: UploadTask[] = [];
 
   while (s3Files.size > 0) {

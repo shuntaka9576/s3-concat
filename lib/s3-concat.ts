@@ -3,8 +3,8 @@ import { S3File } from './s3/file';
 import {
   newPartCopyTask,
   newPartTask,
-  planedSplitFile as planedSplitFiles,
-  planedUploadTask,
+  plannedSplitFiles,
+  plannedUploadTasks,
   type UploadTask,
 } from './s3/task';
 import pLimit, { type LimitFunction } from './std/concurrency';
@@ -295,14 +295,14 @@ export class S3Concat {
     }
 
     const s3Files = this.toS3Files(nonEmpty);
-    const splitFiles = planedSplitFiles(
+    const splitFiles = plannedSplitFiles(
       this.concatFileNameCallback,
       s3Files,
       this.minSize
     );
 
     const outputs: PlannedOutput[] = splitFiles.map((sf) => {
-      const tasks = planedUploadTask(sf.s3Files.files);
+      const tasks = plannedUploadTasks(sf.s3Files.files);
       const parts: PlannedPart[] = tasks.map((task, idx) => {
         const partNumber = idx + 1;
         if (task.uploadType === 'PartCopy') {
