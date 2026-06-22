@@ -11,7 +11,7 @@ s3-concat is a zero-dependency library and CLI that concatenates multiple AWS S3
 Each output object is assembled via S3 multipart upload using one of two part types.
 
 - **`UploadPartCopy`** — for source files ≥ 5 MiB. S3 copies the byte range server-side, so no bytes flow through the client. Sources larger than 5 GiB are split into 5 GiB chunks (S3's per-part copy limit).
-- **`UploadPart`** — for source files < 5 MiB and any leftover tail of a copied file. Bytes are streamed through the client and coalesced with adjacent small files until each part reaches the 5 MiB minimum.
+- **`UploadPart`** — for source files < 5 MiB and any leftover tail from a multi-part copy. Bytes are streamed through the client via a 64 KiB coalescing buffer (no per-part 5 MiB buffer is ever materialized) and concatenated with adjacent small files until each part reaches the 5 MiB minimum. In-flight memory therefore scales as `O(pLimit × 64 KiB)` rather than `O(pLimit × 5 MiB × parts_per_output)`, which keeps workloads involving tens of thousands of small files inside a 1 GiB Lambda envelope.
 
 ![Multipart upload plan: how source objects map onto UploadPartCopy and UploadPart calls](./docs/images/multipart-upload-plan.png)
 
@@ -327,14 +327,6 @@ const s3Client = new S3Client({
   }),
 });
 ```
-
-### Memory characteristics
-
-`UploadPart` streams source bytes through a 64 KiB coalescing buffer
-instead of materializing each part as one Buffer. In-flight memory scales
-as `O(pLimit × 64 KiB)` rather than `O(pLimit × 5 MiB × parts_per_output)`,
-which keeps tens-of-thousands-of-small-files workloads inside a 1 GiB
-Lambda envelope.
 
 ## License
 
