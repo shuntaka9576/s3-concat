@@ -2,6 +2,7 @@ name: ci
 
 on:
   push:
+    branches: [main]
   pull_request:
 
 permissions: {}
@@ -12,6 +13,10 @@ jobs:
     timeout-minutes: 30
     permissions:
       contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: ['22', '24', '26']
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
@@ -20,8 +25,11 @@ jobs:
 
       - name: Action ci
         uses: ./.github/actions/ci
+        with:
+          node-version: ${{ matrix.node-version }}
 
       - name: Upload coverage reports to Codecov
+        if: matrix.node-version == '26'
         uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
         with:
           files: ./coverage/coverage-final.json

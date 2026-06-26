@@ -70,7 +70,7 @@
     "nodejs"
   ],
   "engines": {
-    "node": ">=22.22.3 <25"
+    "node": ">=22.22.3 <27"
   },
   "release": {
     "branches": [
