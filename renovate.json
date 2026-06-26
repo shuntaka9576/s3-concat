@@ -17,7 +17,7 @@
     "schedule": ["at any time"]
   },
   "lockFileMaintenance": {
-    "enabled": true
+    "enabled": false
   },
   "packageRules": [
     {
@@ -30,9 +30,11 @@
       "groupName": "github-actions"
     },
     {
-      "description": "Group AWS SDK packages",
+      "description": "Group AWS SDK packages and batch weekly",
       "matchPackageNames": ["@aws-sdk/**"],
-      "groupName": "aws-sdk"
+      "groupName": "aws-sdk",
+      "schedule": ["before 4am on monday"],
+      "minimumReleaseAge": "1 day"
     },
     {
       "description": "Widen Node engines range instead of bumping the floor",
