@@ -15,8 +15,8 @@ importers:
         specifier: 2.6.3
         version: 2.6.3
       '@floci/testcontainers':
-        specifier: 0.1.0
-        version: 0.1.0(supports-color@7.2.0)
+        specifier: 0.4.0
+        version: 0.4.0(supports-color@7.2.0)
       '@semantic-release/exec':
         specifier: ^7.1.0
         version: 7.1.0(semantic-release@25.0.9(supports-color@7.2.0)(typescript@7.0.2))(supports-color@7.2.0)
@@ -620,8 +620,8 @@ packages:
     resolution: {integrity: sha512-vBZP4NlzfOlerQTnba4aqZoMhE/a9HY7HRqoOPaETQcSQuWEIyZMHGfVu6w9wGtGK5fED5qRs2DteVCjOH60sA==}
     engines: {node: '>=14'}
 
-  '@floci/testcontainers@0.1.0':
-    resolution: {integrity: sha512-6oHUJikcgaDAwypIVC12TOMSWC1tI+Hjepkb1USlRmKxAKUmIakeYPRWGmiGU2tYog8gj34p3Ijxd92eh2dV4Q==}
+  '@floci/testcontainers@0.4.0':
+    resolution: {integrity: sha512-iIqFU2FypQxnAqzE6fTAzpo4yyQKrzCT/gmszWsQKTGhzHKVPnIXNyovnC9TCTbFLssFhzqx4rtMrHICI7sXbg==}
     engines: {node: '>=18'}
 
   '@grpc/grpc-js@1.14.4':
@@ -3835,7 +3835,7 @@ snapshots:
 
   '@fastify/busboy@2.1.1': {}
 
-  '@floci/testcontainers@0.1.0(supports-color@7.2.0)':
+  '@floci/testcontainers@0.4.0(supports-color@7.2.0)':
     dependencies:
       testcontainers: 10.28.0(supports-color@7.2.0)
     transitivePeerDependencies:
