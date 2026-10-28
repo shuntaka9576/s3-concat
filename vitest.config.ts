@@ -1,6 +1,6 @@
-import { defineConfig } from 'vitest/config';
+import { defineConfig, type ViteUserConfig } from 'vitest/config';
 
-export default defineConfig({
+const config: ViteUserConfig = defineConfig({
   test: {
     name: 'medium',
     dir: 'tests/medium',
@@ -14,3 +14,5 @@ export default defineConfig({
     globalSetup: 'tests/medium/setup/global-setup.ts',
   },
 });
+
+export default config;

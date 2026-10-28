@@ -176,18 +176,16 @@ describe('parseCliArgs', () => {
     }
   });
 
-  test.each([
-    '0',
-    '-1',
-    '1.5',
-    'abc',
-  ])('errors on invalid --p-limit value %s', (v) => {
-    const got = parseCliArgs([...baseArgs, '--p-limit', v]);
-    expect(got.kind).toBe('error');
-    if (got.kind === 'error') {
-      expect(got.message).toMatch(/p-limit/);
+  test.each(['0', '-1', '1.5', 'abc'])(
+    'errors on invalid --p-limit value %s',
+    (v) => {
+      const got = parseCliArgs([...baseArgs, '--p-limit', v]);
+      expect(got.kind).toBe('error');
+      if (got.kind === 'error') {
+        expect(got.message).toMatch(/p-limit/);
+      }
     }
-  });
+  );
 
   test('errors on unknown option', () => {
     const got = parseCliArgs([...baseArgs, '--bogus']);

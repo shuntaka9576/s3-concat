@@ -1,6 +1,6 @@
-import { defineConfig } from 'vitest/config';
+import { defineConfig, type ViteUserConfig } from 'vitest/config';
 
-export default defineConfig({
+const config: ViteUserConfig = defineConfig({
   test: {
     name: 'unit',
     dir: 'tests/unit',
@@ -8,3 +8,5 @@ export default defineConfig({
     testTimeout: 10_000,
   },
 });
+
+export default config;

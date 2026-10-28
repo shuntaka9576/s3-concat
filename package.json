@@ -38,21 +38,21 @@
   },
   "author": "shuntaka9576",
   "license": "MIT",
-  "packageManager": "pnpm@11.15.1",
+  "packageManager": "pnpm@11.28.8",
   "peerDependencies": {
     "@aws-sdk/client-s3": ">=3.300.0 <4.0.0"
   },
   "devDependencies": {
-    "@aws-sdk/client-s3": "3.1090.0",
-    "@biomejs/biome": "2.5.3",
+    "@aws-sdk/client-s3": "3.1157.0",
+    "@biomejs/biome": "2.6.3",
     "@floci/testcontainers": "0.1.0",
     "@semantic-release/exec": "^7.1.0",
-    "@vitest/coverage-v8": "4.1.10",
-    "cspell": "10.0.1",
-    "semantic-release": "25.0.6",
-    "tsdown": "^0.22.12",
-    "typescript": "6.0.3",
-    "vitest": "4.1.10"
+    "@vitest/coverage-v8": "4.1.12",
+    "cspell": "10.4.0",
+    "semantic-release": "25.0.9",
+    "tsdown": "^0.23.2",
+    "typescript": "7.0.2",
+    "vitest": "4.1.12"
   },
   "repository": {
     "type": "git",

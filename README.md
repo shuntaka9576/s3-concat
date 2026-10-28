@@ -101,22 +101,22 @@ s3://my-bucket/out/concat_2.bin (3145728 bytes, 1 part)
 <details>
 <summary><strong>Options</strong></summary>
 
-| Option | Description |
-| --- | --- |
-| `--src-bucket <name>` | Source bucket name (required) |
-| `--dst-bucket <name>` | Destination bucket name (required) |
-| `--src-prefix <prefix>` | Source key prefix; repeat to scan multiple prefixes (required) |
-| `--dst-prefix <prefix>` | Destination key prefix (required) |
-| `--concat-file-name <name>` | Single output object name (mutually exclusive with template) |
-| `--concat-file-name-template <t>` | Template for split outputs; must contain `{i}` |
-| `--min-size <size>` | Start a new output once the current one reaches this size, e.g. `5GiB`, `100MiB`. Source files are never split across outputs — a single source always lands in one output object. |
-| `--p-limit <n>` | Concurrency limit (default 5) |
-| `--join-order <order>` | `fetchOrder` (default), `keyNameAsc`, or `keyNameDsc` |
-| `--dry-run` | Print plan without performing the concat |
-| `--verbose` | Verbose logging to stderr |
-| `--json` | Emit the result as JSON on stdout |
-| `-h, --help` | Show help |
-| `-v, --version` | Show version |
+| Option                            | Description                                                                                                                                                                        |
+| --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--src-bucket <name>`             | Source bucket name (required)                                                                                                                                                      |
+| `--dst-bucket <name>`             | Destination bucket name (required)                                                                                                                                                 |
+| `--src-prefix <prefix>`           | Source key prefix; repeat to scan multiple prefixes (required)                                                                                                                     |
+| `--dst-prefix <prefix>`           | Destination key prefix (required)                                                                                                                                                  |
+| `--concat-file-name <name>`       | Single output object name (mutually exclusive with template)                                                                                                                       |
+| `--concat-file-name-template <t>` | Template for split outputs; must contain `{i}`                                                                                                                                     |
+| `--min-size <size>`               | Start a new output once the current one reaches this size, e.g. `5GiB`, `100MiB`. Source files are never split across outputs — a single source always lands in one output object. |
+| `--p-limit <n>`                   | Concurrency limit (default 5)                                                                                                                                                      |
+| `--join-order <order>`            | `fetchOrder` (default), `keyNameAsc`, or `keyNameDsc`                                                                                                                              |
+| `--dry-run`                       | Print plan without performing the concat                                                                                                                                           |
+| `--verbose`                       | Verbose logging to stderr                                                                                                                                                          |
+| `--json`                          | Emit the result as JSON on stdout                                                                                                                                                  |
+| `-h, --help`                      | Show help                                                                                                                                                                          |
+| `-v, --version`                   | Show version                                                                                                                                                                       |
 
 </details>
 
@@ -273,7 +273,8 @@ const planStep = async (): Promise<Plan> => {
   });
   await s3c.addFiles('unload/query-id-xxxx/');
   const result = s3c.plan();
-  if (result.kind !== 'planned') throw new Error(`nothing to concat: ${result.kind}`);
+  if (result.kind !== 'planned')
+    throw new Error(`nothing to concat: ${result.kind}`);
   return result;
 };
 

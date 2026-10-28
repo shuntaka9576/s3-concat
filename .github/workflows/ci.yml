@@ -16,7 +16,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node-version: ['22', '24', '26']
+        node-version: ["22", "24", "26"]
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -24,13 +24,13 @@ jobs:
           persist-credentials: false
 
       - name: Action ci
-        uses: ./.github/actions/ci
+        uses: $/.github/actions/ci
         with:
           node-version: ${{ matrix.node-version }}
 
       - name: Upload coverage reports to Codecov
         if: matrix.node-version == '26'
-        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
           files: ./coverage/coverage-final.json
           token: ${{ secrets.CODECOV_TOKEN }}

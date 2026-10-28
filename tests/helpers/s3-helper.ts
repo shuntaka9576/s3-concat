@@ -7,6 +7,7 @@ import {
   ListMultipartUploadsCommand,
   ListObjectsV2Command,
   PutObjectCommand,
+  type PutObjectCommandOutput,
   type S3Client,
 } from '@aws-sdk/client-s3';
 import { onTestFinished } from 'vitest';
@@ -66,7 +67,11 @@ export class S3ClientHelper {
     return { bucketName };
   }
 
-  uploadFile(bucketName: string, key: string, body: Buffer) {
+  uploadFile(
+    bucketName: string,
+    key: string,
+    body: Buffer
+  ): Promise<PutObjectCommandOutput> {
     return this.s3Client.send(
       new PutObjectCommand({
         Bucket: bucketName,
