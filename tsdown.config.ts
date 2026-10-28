@@ -1,11 +1,11 @@
 import { readFileSync } from 'node:fs';
-import { defineConfig } from 'tsdown';
+import { defineConfig, type UserConfigExport } from 'tsdown';
 
 const pkg = JSON.parse(readFileSync('./package.json', 'utf8')) as {
   version: string;
 };
 
-export default defineConfig({
+const config: UserConfigExport = defineConfig({
   entry: {
     's3-concat': 'lib/s3-concat.ts',
     cli: 'lib/cli.ts',
@@ -29,3 +29,5 @@ export default defineConfig({
     };
   },
 });
+
+export default config;

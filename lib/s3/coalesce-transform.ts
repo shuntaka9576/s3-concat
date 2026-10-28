@@ -4,7 +4,7 @@ import { Transform, type TransformCallback } from 'node:stream';
 // 64 KiB matches the AWS SDK's default requestStreamBufferSize and gives
 // enough headroom that GetObject's ~16 KiB IncomingMessage chunks always
 // land above the threshold after one or two coalesce passes.
-export const COALESCE_MIN = 64 * 1024;
+export const COALESCE_MIN: number = 64 * 1024;
 
 export class CoalesceTransform extends Transform {
   private pending: Buffer[] = [];

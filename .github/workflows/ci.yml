@@ -16,7 +16,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node-version: ['22', '24', '26']
+        node-version: ["22", "24", "26"]
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -24,7 +24,7 @@ jobs:
           persist-credentials: false
 
       - name: Action ci
-        uses: ./.github/actions/ci
+        uses: $/.github/actions/ci
         with:
           node-version: ${{ matrix.node-version }}
 

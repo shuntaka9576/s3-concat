@@ -3,9 +3,9 @@ export type StorageUnit = (typeof storageUnits)[number];
 export type StorageSize<U extends StorageUnit> = `${number}${U}`;
 
 export const KiB = 1024;
-export const MiB = 1024 * KiB;
-export const GiB = 1024 * MiB;
-export const TiB = 1024 * GiB;
+export const MiB: number = 1024 * KiB;
+export const GiB: number = 1024 * MiB;
+export const TiB: number = 1024 * GiB;
 
 const STORAGE_SIZE_REGEX = new RegExp(`^\\d+(${storageUnits.join('|')})$`);
 

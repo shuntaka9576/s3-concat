@@ -21,6 +21,7 @@
     "types": ["vitest/globals", "vitest/importMeta"],
     "incremental": true,
     "declaration": true,
+    "isolatedDeclarations": true,
     "emitDeclarationOnly": true,
     "outDir": "./dist"
   }
